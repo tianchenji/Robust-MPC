@@ -64,14 +64,14 @@ print(test.b)
 '''
 
 # projection
-A = np.array([[0.8, 0.3], [0.3, 2.7]]) * 10 / 9
+A = np.array([[0.8, 0.3], [0.3, 2.7]])
 L = np.linalg.cholesky(A)
 x0 = np.array([[0], [0]])
 v = np.array([[1], [0]])
 c = np.array([[1.2], [0.4]])
 s0 = np.dot(np.transpose(v), c - x0) / np.dot(np.transpose(v), v)
 w = np.dot(np.linalg.inv(L), v) / np.dot(np.transpose(v), v)
-norm_w = np.linalg.norm(w)
+norm_w = np.linalg.norm(w) * (3 / sqrt(10))
 s_min = float(s0 - norm_w)
 s_max = float(s0 + norm_w)
 
