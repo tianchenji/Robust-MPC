@@ -68,7 +68,7 @@ def single_var_ex():
 	plt.show()
 
 def multi_var_ex():
-	n_iter = 500
+	n_iter = 50
 	x      = np.array([[1.2], [2.7]]) # real value
 	Q      = np.array([[0.0577**2, 0], [0, 0.0577**2]])
 	R      = np.array([[2**2, 0], [0, 2**2]])
@@ -110,4 +110,4 @@ def multi_var_ex():
 	plt.grid()
 	plt.show()
 
-single_var_ex()
+multi_var_ex()
