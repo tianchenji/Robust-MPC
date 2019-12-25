@@ -74,7 +74,7 @@ def rbe_update(A, B, C, Q, R, Sigma, z, xhat, delta):
 	return (Sigma_posteri, xhat, delta)
 
 
-def rkf_project(Sigma, xhat, delta):
+def rbe_project(Sigma, xhat, delta):
 	'''
 	rkf_project returns lowerbound and upperbound of the state estimates
 	Inputs:		Sigma: a posteri error covariance at time k
@@ -141,7 +141,7 @@ for i in range(1, n_iter):
 	y = xreal[i] + np.random.uniform(-0.1, 0.1, (2, 1))
 	x1_measurements[i] = float(y[0])
 	(Sigma, xhat, delta) = rbe_update(A, B, C, Q, R, Sigma, y, xhat, delta)
-	(s0_min, s0_max, s1_min, s1_max) = rkf_project(Sigma, xhat, delta)
+	(s0_min, s0_max, s1_min, s1_max) = rbe_project(Sigma, xhat, delta)
 	x1_lowerbound[i] = s0_min
 	x1_upperbound[i] = s0_max
 	x1_hat[i] = float(xhat[0])
