@@ -9,14 +9,16 @@
 
 import numpy as np
 from math import sqrt
+from kf import kf_predict, kf_update
 import matplotlib.pyplot as plt
 
-def rkf_update(A, B, C, Q, R, Sigma, z, xhat, delta):
+def rkf_update(A, B, E, C, Q, R, u, Sigma, z, xhat, delta):
 	'''
 	robust filtering algorithm for energy constraint
 	rkf_update returns state estimate xhat, ellipsoid shape matrix Sigma and shrinkage delta at time k
-	Inputs: 	A, B, C: system dynamics
+	Inputs: 	A, B, E, C: system dynamics
 				Q, R: energy constraints of process noise and measurement noise respectively
+				u: control input at time k - 1
 				Sigma: a posteri error covariance at time k - 1
 				z: measurement at time k
 				xhat: a posteri state estimate at time k - 1
@@ -27,12 +29,12 @@ def rkf_update(A, B, C, Q, R, Sigma, z, xhat, delta):
 	'''
 
 	# update Sigma
-	Sigma_priori  = np.dot(A, np.dot(Sigma, A.T)) + np.dot(B, np.dot(Q, B.T))
+	Sigma_priori  = np.dot(A, np.dot(Sigma, A.T)) + np.dot(E, np.dot(Q, E.T))
 	Sigma_posteri = np.linalg.inv(np.linalg.inv(Sigma_priori) + np.dot(C.T, np.dot(np.linalg.inv(R), C)))
 
 	# update xhat
 	IM = z - np.dot(C, np.dot(A, xhat))
-	xhat = np.dot(A, xhat) + np.dot(Sigma_posteri, np.dot(C.T, np.dot(np.linalg.inv(R), IM)))
+	xhat = np.dot(A, xhat) + np.dot(B, u) + np.dot(Sigma_posteri, np.dot(C.T, np.dot(np.linalg.inv(R), IM)))
 
 	# update shrinkage delta
 	IS = np.linalg.inv(np.dot(C, np.dot(Sigma_priori, C.T)) + R)
@@ -40,12 +42,13 @@ def rkf_update(A, B, C, Q, R, Sigma, z, xhat, delta):
 
 	return (Sigma_posteri, xhat, delta)
 
-def rbe_update(A, B, C, Q, R, Sigma, z, xhat, delta):
+def rbe_update(A, B, E, C, Q, R, u, Sigma, z, xhat, delta):
 	'''
 	robust filtering algorithm for instantaneous constraint
 	rbe_update returns state estimate xhat, ellipsoid shape matrix Sigma and shrinkage delta at time k
-	Inputs: 	A, B, C: system dynamics
+	Inputs: 	A, B, E, C: system dynamics
 				Q, R: energy constraints of process noise and measurement noise respectively
+				u: control input at time k - 1
 				Sigma: a posteri error covariance at time k - 1
 				z: measurement at time k
 				xhat: a posteri state estimate at time k - 1
@@ -60,12 +63,12 @@ def rbe_update(A, B, C, Q, R, Sigma, z, xhat, delta):
 	rho  = 0.5
 
 	# update Sigma
-	Sigma_priori  = (1 / (1 - beta)) * np.dot(A, np.dot(Sigma, A.T)) + (1 / beta) * np.dot(B, np.dot(Q, B.T))
+	Sigma_priori  = (1 / (1 - beta)) * np.dot(A, np.dot(Sigma, A.T)) + (1 / beta) * np.dot(E, np.dot(Q, E.T))
 	Sigma_posteri = np.linalg.inv((1 - rho) * np.linalg.inv(Sigma_priori) + rho * np.dot(C.T, np.dot(np.linalg.inv(R), C)))
 
 	# update xhat
 	IM = z - np.dot(C, np.dot(A, xhat))
-	xhat = np.dot(A, xhat) + rho * np.dot(Sigma_posteri, np.dot(C.T, np.dot(np.linalg.inv(R), IM)))
+	xhat = np.dot(A, xhat) + np.dot(B, u) + rho * np.dot(Sigma_posteri, np.dot(C.T, np.dot(np.linalg.inv(R), IM)))
 
 	# update shrinkage delta
 	IS = np.linalg.inv((1 / (1 - rho)) * np.dot(C, np.dot(Sigma_priori, C.T)) + (1 / rho) * R)
@@ -132,15 +135,17 @@ delta = 0
 
 Sigma = np.array([[1, 0], [0, 1]])
 A     = np.array([[1, 0], [0, 1]])
-B     = np.array([[1, 0], [0, 1]])
+B     = np.array([[1.5], [0.0]])
+E     = np.array([[1, 0], [0, 1]])
 C     = np.array([[1, 0], [0, 1]])
+u     = np.array([[0.01]])
 
 for i in range(1, n_iter):
-	xreal[i] = xreal[i - 1] + np.random.uniform(-0.1, 0.1, (2, 1))
+	xreal[i] = np.dot(A, xreal[i - 1]) + np.dot(B, u) + np.random.uniform(-0.1, 0.1, (2, 1))
 	x1_real[i] = float(xreal[i][0])
-	y = xreal[i] + np.random.uniform(-0.1, 0.1, (2, 1))
+	y = np.dot(C, xreal[i]) + np.random.uniform(-0.1, 0.1, (2, 1))
 	x1_measurements[i] = float(y[0])
-	(Sigma, xhat, delta) = rbe_update(A, B, C, Q, R, Sigma, y, xhat, delta)
+	(Sigma, xhat, delta) = rbe_update(A, B, E, C, Q, R, u, Sigma, y, xhat, delta)
 	(s0_min, s0_max, s1_min, s1_max) = rbe_project(Sigma, xhat, delta)
 	x1_lowerbound[i] = s0_min
 	x1_upperbound[i] = s0_max

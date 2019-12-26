@@ -25,10 +25,10 @@ def kf_update(X, P, Y, H, R):
 	return (X, P)
 
 def single_var_ex():
-	n_iter = 500
-	x      = -0.37727 # real value
-	Q      = np.array([[0.0577**2]])
-	R      = np.array([[2**2]])
+	n_iter = 50
+	x      = np.array([[-0.37727]]) # real value
+	Q      = np.array([[0.0002]])
+	R      = np.array([[2]])
 
 	xhat         = [0] * n_iter
 	measurements = [0] * n_iter
@@ -47,8 +47,8 @@ def single_var_ex():
 	xhat_0_plus = E(x_0)
 	'''
 	for i in range(1, n_iter):
-		xreal[i] = xreal[i - 1] + np.random.normal(0, 0.0577) # real states
-		y = xreal[i] + np.random.normal(0, 2) # observations
+		xreal[i] = np.dot(A, xreal[i - 1]) + np.dot(B, U) + np.random.uniform(-0.01, 0.01) # real states
+		y = np.dot(H, xreal[i]) + np.random.uniform(-1, 1) # observations
 		measurements[i] = float(y)
 		(X, P) = kf_predict(X, P, A, Q, B, U)
 		(X, P) = kf_update(X, P, y, H, R)
@@ -56,6 +56,7 @@ def single_var_ex():
 		xhat[i] = float(X)
 
 	xreal = xreal[1:len(xreal)]
+	xreal = [float(i) for i in xreal]
 	xhat  = xhat[1:len(xhat)]
 	measurements = measurements[1:len(measurements)]
 	plt.figure()
@@ -69,9 +70,9 @@ def single_var_ex():
 
 def multi_var_ex():
 	n_iter = 50
-	x      = np.array([[1.2], [2.7]]) # real value
-	Q      = np.array([[0.0577**2, 0], [0, 0.0577**2]])
-	R      = np.array([[2**2, 0], [0, 2**2]])
+	x      = np.array([[12], [27]]) # real value
+	Q      = np.array([[0.0002, 0], [0, 0.0002]])
+	R      = np.array([[2, 0], [0, 2]])
 
 	xreal           = [0] * n_iter
 	xreal[0]        = x
@@ -84,14 +85,14 @@ def multi_var_ex():
 
 	P = np.array([[1, 0], [0, 1]])
 	A = np.array([[1, 0], [0, 1]])
-	B = np.array([[0], [0]])
-	U = np.array([[0]])
+	B = np.array([[1.5], [0]])
+	U = np.array([[0.01]])
 	H = np.array([[1, 0], [0, 1]])
 
 	for i in range(1, n_iter):
-		xreal[i] = xreal[i - 1] + np.random.normal(0, 0.0577, (2, 1))
+		xreal[i] = np.dot(A, xreal[i - 1]) + np.dot(B, U) + np.random.uniform(-0.01, 0.01, (2, 1))
 		x1_real[i] = float(xreal[i][0])
-		y = xreal[i] + np.random.normal(0, 2, (2, 1))
+		y = np.dot(H, xreal[i]) + np.random.uniform(-1, 1, (2, 1))
 		x1_measurements[i] = float(y[0])
 		(X, P) = kf_predict(X, P, A, Q, B, U)
 		(X, P) = kf_update(X, P, y, H, R)
@@ -110,4 +111,5 @@ def multi_var_ex():
 	plt.grid()
 	plt.show()
 
-multi_var_ex()
+if __name__ == '__main__':
+	multi_var_ex()
