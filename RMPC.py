@@ -74,7 +74,7 @@ class RMPC:
 		h = [0]*n_h
 
 		# calculating rho given r
-		phi = self.A + self.B*self.K
+		phi = self.A + np.dot(self.B, self.K)
 		n_rho = np.shape(self.V)[0]
 		mrho = [None]*n_rho
 
@@ -82,7 +82,8 @@ class RMPC:
 		w = SX.sym('w', n_w)
 
 		# define costs for linear programs in matrix form
-		rhocost = - mtimes((self.V * np.linalg.pinv(self.D) * numpy.linalg.matrix_power(phi, self.r) * self.D), w)
+		tmp = np.dot(self.V, np.dot(np.linalg.pinv(self.D), np.dot(np.linalg.matrix_power(phi, self.r), self.D)))
+		rhocost = - mtimes(tmp, w)
 
 		# solve n_rho linear programs
 		for i in range(n_rho):
@@ -98,7 +99,8 @@ class RMPC:
 
 		# calculate vector h by solving r * n_h linear programs
 		for j in range(self.r):
-			hcost = - mtimes(((self.F + self.G*self.K)*numpy.linalg.matrix_power(phi, j) * self.D), w)
+			tmp = self.F + np.dot(self.G, self.K)
+			hcost = - mtimes(np.dot(tmp, np.dot(np.linalg.matrix_power(phi, j), self.D)), w)
 			for k in range(n_h):
 				nlp = {'x':w, 'f':hcost[k]}
 				opts = {}
@@ -210,19 +212,19 @@ class RMPC:
 
 
 
-A = np.matrix([[0.5,0],[0.5,1]])
-B = np.matrix([[1],[0]])
-D = np.matrix([[-1,0],[0,-1]])
-F = np.matrix([[-10/3,0],[10/7,0],[0,-2],[0,2],[0,0],[0,0]])
-G = np.matrix([[0],[0],[0],[0],[-10/3],[5]])
-K = np.matrix([[-0.89,-0.78]])
-V = np.matrix([[20,0],[-20,0],[0,20],[0,-20]])
-f = np.matrix([[1],[1],[1],[1],[1],[1]])
+A = np.array([[0.5,0],[0.5,1]])
+B = np.array([[1],[0]])
+D = np.array([[-1,0],[0,-1]])
+F = np.array([[-10/3,0],[10/7,0],[0,-2],[0,2],[0,0],[0,0]])
+G = np.array([[0],[0],[0],[0],[-10/3],[5]])
+K = np.array([[-0.89,-0.78]])
+V = np.array([[20,0],[-20,0],[0,20],[0,-20]])
+f = np.array([[1],[1],[1],[1],[1],[1]])
 lb=[-0.05] * 2
 ub=[0.05] * 2
 r = 6
 N = 3
-s_0 = np.matrix([[0.6],[-0.2]])
+s_0 = np.array([[0.6],[-0.2]])
 x_ori_0 = s_0
 threshold = pow(10, -5)
 vis_x = []
@@ -238,15 +240,14 @@ end = time.clock()
 # keep iterating until the cost is less than the threshold
 while sol["f"] > threshold:
 	# calculate optimal control
-	v_opt = np.asmatrix(sol["x"][rmpc.first_state_index.v[0]::(rmpc.horizon - 1)])
-	u_opt = K * (x_ori_0 - s_0) + v_opt
+	v_opt = np.asarray(sol["x"][rmpc.first_state_index.v[0]::(rmpc.horizon - 1)])
+	u_opt = np.dot(K, (x_ori_0 - s_0)) + v_opt
 
 	# simulate forward
 	# we assume that all disturbances have the same range
-	disturbance = np.asmatrix(np.random.uniform(low=lb[0], high=ub[0], size=np.shape(D)[1]))
-	disturbance = disturbance.reshape(np.shape(D)[1], 1)
-	x_ori_0_next = A * x_ori_0 + B * u_opt + D * disturbance
-	s_0_next = A * s_0 + B * v_opt
+	disturbance = np.random.uniform(lb[0], ub[0], (np.shape(D)[1], 1))
+	x_ori_0_next = np.dot(A, x_ori_0) + np.dot(B, u_opt) + np.dot(D, disturbance)
+	s_0_next = np.dot(A, s_0) + np.dot(B, v_opt)
 	x_ori_0 = x_ori_0_next
 	s_0 = s_0_next
 
@@ -255,6 +256,7 @@ while sol["f"] > threshold:
 
 	sol = rmpc.RMPC(h, s_0)
 	print(sol["f"])
+	print(h)
 
 plt.plot(vis_x, vis_y, 'o-')
 plt.show()
