@@ -9,7 +9,6 @@
 
 import numpy as np
 from math import sqrt
-from kf import kf_predict, kf_update
 import matplotlib.pyplot as plt
 
 def rkf_update(A, B, E, C, Q, R, u, Sigma, z, xhat, delta):
@@ -33,7 +32,7 @@ def rkf_update(A, B, E, C, Q, R, u, Sigma, z, xhat, delta):
 	Sigma_posteri = np.linalg.inv(np.linalg.inv(Sigma_priori) + np.dot(C.T, np.dot(np.linalg.inv(R), C)))
 
 	# update xhat
-	IM = z - np.dot(C, np.dot(A, xhat))
+	IM = z - np.dot(C, (np.dot(A, xhat) + np.dot(B, u)))
 	xhat = np.dot(A, xhat) + np.dot(B, u) + np.dot(Sigma_posteri, np.dot(C.T, np.dot(np.linalg.inv(R), IM)))
 
 	# update shrinkage delta
@@ -60,14 +59,14 @@ def rbe_update(A, B, E, C, Q, R, u, Sigma, z, xhat, delta):
 
 	# set filtering parameters
 	beta = 0.5
-	rho  = 0.5
+	rho  = 0.3
 
 	# update Sigma
 	Sigma_priori  = (1 / (1 - beta)) * np.dot(A, np.dot(Sigma, A.T)) + (1 / beta) * np.dot(E, np.dot(Q, E.T))
 	Sigma_posteri = np.linalg.inv((1 - rho) * np.linalg.inv(Sigma_priori) + rho * np.dot(C.T, np.dot(np.linalg.inv(R), C)))
 
 	# update xhat
-	IM = z - np.dot(C, np.dot(A, xhat))
+	IM = z - np.dot(C, (np.dot(A, xhat) + np.dot(B, u)))
 	xhat = np.dot(A, xhat) + np.dot(B, u) + rho * np.dot(Sigma_posteri, np.dot(C.T, np.dot(np.linalg.inv(R), IM)))
 
 	# update shrinkage delta
@@ -138,7 +137,7 @@ A     = np.array([[1, 0], [0, 1]])
 B     = np.array([[1.5], [0.0]])
 E     = np.array([[1, 0], [0, 1]])
 C     = np.array([[1, 0], [0, 1]])
-u     = np.array([[0.01]])
+u     = np.array([[0.02]])
 
 for i in range(1, n_iter):
 	xreal[i] = np.dot(A, xreal[i - 1]) + np.dot(B, u) + np.random.uniform(-0.1, 0.1, (2, 1))
