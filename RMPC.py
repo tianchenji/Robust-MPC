@@ -9,6 +9,7 @@
 
 from casadi import *
 import numpy as np
+from scipy.linalg import solve_discrete_are
 import matplotlib.pyplot as plt
 import time
 
@@ -209,21 +210,44 @@ class RMPC:
 		res = solver(x0=x_0, lbg=g_lowerbound, ubg=g_upperbound)
 		return res
 
+def lqr(A, B, Q, R):
+	'''
+	lqr solves the discrete time lqr controller.
+	'''
+
+	P   = solve_discrete_are(A, B, Q, R)
+	tmp = np.linalg.inv(R + np.dot(B.T, np.dot(P, B)))
+	K   = - np.dot(tmp, np.dot(B.T, np.dot(P, A)))
+	return K
 
 
-
+# system dynaimcs
 A = np.array([[0.5,0],[0.5,1]])
 B = np.array([[1],[0]])
 D = np.array([[-1,0],[0,-1]])
+
+# states and input constraints
 F = np.array([[-10/3,0],[10/7,0],[0,-2],[0,2],[0,0],[0,0]])
 G = np.array([[0],[0],[0],[0],[-10/3],[5]])
-K = np.array([[-0.89,-0.78]])
-V = np.array([[20,0],[-20,0],[0,20],[0,-20]])
 f = np.array([[1],[1],[1],[1],[1],[1]])
+
+# bounds for noise
+V = np.array([[20,0],[-20,0],[0,20],[0,-20]])
 lb=[-0.05] * 2
 ub=[0.05] * 2
+
+# calculate LQR gain matrix
+Q = np.array([[1, 0], [0, 1]])
+R = np.array([[0.01]])
+K = lqr(A, B, Q, R)
+print(K)
+
+# mRPI parameters
 r = 6
+
+# prediction horizon
 N = 3
+
 s_0 = np.array([[0.6],[-0.2]])
 x_ori_0 = s_0
 threshold = pow(10, -5)
@@ -256,7 +280,6 @@ while sol["f"] > threshold:
 
 	sol = rmpc.RMPC(h, s_0)
 	print(sol["f"])
-	print(h)
 
 plt.plot(vis_x, vis_y, 'o-')
 plt.show()
