@@ -34,7 +34,7 @@ class FirstStateIndex:
 
 class RMPC:
 
-	def __init__(self, A, B, D, F, G, K, V, f, lb, ub, r, N):
+	def __init__(self, A, B, D, F, G, P, K, V, f, lb, ub, r, N):
 		'''
 		A, B, D: system dynamic matrices
 		F, G: constriant matrices
@@ -52,6 +52,7 @@ class RMPC:
 		self.D = D
 		self.F = F
 		self.G = G
+		self.P = P
 		self.K = K
 		self.V = V
 		self.f = f
@@ -156,10 +157,13 @@ class RMPC:
 			for j in range(self.horizon - 1):
 				#cost += fabs(x[self.first_state_index.s[i] + j])
 				cost += (x[self.first_state_index.s[i] + j]**2)
+		## penalty on terminal states
+		#for i in range(len(self.first_state_index.s)):
+			##cost += 10 * fabs(x[self.first_state_index.s[i] + self.horizon - 1])
+			#cost += 10 * (x[self.first_state_index.s[i] + self.horizon - 1]**2)
 		# penalty on terminal states
-		for i in range(len(self.first_state_index.s)):
-			#cost += 10 * fabs(x[self.first_state_index.s[i] + self.horizon - 1])
-			cost += 10 * (x[self.first_state_index.s[i] + self.horizon - 1]**2)
+		terminal_states = x[self.first_state_index.s[0] + self.horizon - 1:self.first_state_index.v[0]:self.horizon]
+		cost += mtimes(terminal_states.T, mtimes(self.P, terminal_states))
 		# penalty on control inputs
 		for i in range(len(self.first_state_index.v)):
 			for j in range(self.horizon - 1):
@@ -218,12 +222,12 @@ def lqr(A, B, Q, R):
 	P   = solve_discrete_are(A, B, Q, R)
 	tmp = np.linalg.inv(R + np.dot(B.T, np.dot(P, B)))
 	K   = - np.dot(tmp, np.dot(B.T, np.dot(P, A)))
-	return K
+	return (P, K)
 
 
 # system dynaimcs
 A = np.array([[0.5,0],[0.5,1]])
-B = np.array([[1],[0]])
+B = np.array([[0.6],[0]])
 D = np.array([[-1,0],[0,-1]])
 
 # states and input constraints
@@ -237,9 +241,9 @@ lb=[-0.05] * 2
 ub=[0.05] * 2
 
 # calculate LQR gain matrix
-Q = np.array([[1, 0], [0, 1]])
-R = np.array([[0.01]])
-K = lqr(A, B, Q, R)
+Q      = np.array([[1, 0], [0, 1]])
+R      = np.array([[0.01]])
+(P, K) = lqr(A, B, Q, R)
 
 # mRPI parameters
 r = 6
@@ -254,7 +258,7 @@ vis_x = []
 vis_y = []
 vis_x.append(list(map(float,x_ori_0[0])))
 vis_y.append(list(map(float,x_ori_0[1])))
-rmpc = RMPC(A=A, B=B, D=D, F=F, G=G, K=K, V=V, f=f, lb=lb, ub=ub, r=r, N=N)
+rmpc = RMPC(A=A, B=B, D=D, F=F, G=G, P=P, K=K, V=V, f=f, lb=lb, ub=ub, r=r, N=N)
 start = time.clock()
 h = list(map(float, rmpc.mRPI()))
 if max(h) >= 1:
