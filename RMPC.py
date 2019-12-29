@@ -223,7 +223,7 @@ def lqr(A, B, Q, R):
 
 # system dynaimcs
 A = np.array([[0.5,0],[0.5,1]])
-B = np.array([[1],[0]])
+B = np.array([[0.1],[0]])
 D = np.array([[-1,0],[0,-1]])
 
 # states and input constraints
@@ -258,6 +258,9 @@ vis_y.append(list(map(float,x_ori_0[1])))
 rmpc = RMPC(A=A, B=B, D=D, F=F, G=G, K=K, V=V, f=f, lb=lb, ub=ub, r=r, N=N)
 start = time.clock()
 h = list(map(float, rmpc.mRPI()))
+if max(h) >= 1:
+	print("Robustly positively invariant set is empty! Cannot achieve robustness!")
+	sys.exit()
 sol = rmpc.RMPC(h, s_0)
 end = time.clock()
 
