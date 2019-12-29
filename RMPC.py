@@ -284,7 +284,7 @@ while sol["f"] > threshold:
 		for i in range(np.shape(F)[0]):
 			tmp_list = [0] * (rmpc.horizon - 1)
 			for j in range(rmpc.horizon - 1):
-				tmp_list[j] = constraints_varlist[j][i]
+				tmp_list[j] = float(constraints_varlist[j][i])
 			constraint_var[i] = tmp_list
 	vis_flag = 1
 
@@ -308,11 +308,21 @@ plt.plot(vis_x, vis_y, 'o-', label='state trajectory')
 plt.legend()
 plt.grid()
 
-# plot constraints and corresponding bounds
+'''
+# plot constraints and corresponding bounds (indirect way)
 plt.figure()
 index = 4
 plt.plot(constraint_var[index], 'k.-', label='control input')
 plt.hlines(float(f[index]) - h[index], 0, N - 2, colors='r', label='input bounds')
+plt.legend()
+plt.grid()
+'''
+
+# plot constraints and corresponding bounds (direct way)
+plt.figure()
+plt.plot([i * float(1/G[4]) for i in constraint_var[4]], 'k.-', label='auxiliary control input')
+plt.hlines(float(1/G[4])*(float(f[4]) - h[4]), 0, N - 2, colors='r')
+plt.hlines(float(1/G[5])*(float(f[5]) - h[5]), 0, N - 2, colors='r')
 plt.legend()
 plt.grid()
 
