@@ -223,7 +223,7 @@ def lqr(A, B, Q, R):
 
 # system dynaimcs
 A = np.array([[0.5,0],[0.5,1]])
-B = np.array([[0.1],[0]])
+B = np.array([[1],[0]])
 D = np.array([[-1,0],[0,-1]])
 
 # states and input constraints
@@ -240,13 +240,12 @@ ub=[0.05] * 2
 Q = np.array([[1, 0], [0, 1]])
 R = np.array([[0.01]])
 K = lqr(A, B, Q, R)
-print(K)
 
 # mRPI parameters
 r = 6
 
 # prediction horizon
-N = 3
+N = 10
 
 s_0 = np.array([[0.6],[-0.2]])
 x_ori_0 = s_0
@@ -264,11 +263,30 @@ if max(h) >= 1:
 sol = rmpc.RMPC(h, s_0)
 end = time.clock()
 
+# constraints visualization variables
+constraints_varlist = [0] * (rmpc.horizon - 1)
+constraint_var      = [0] * np.shape(F)[0]
+vis_flag            = 0
+
 # keep iterating until the cost is less than the threshold
 while sol["f"] > threshold:
 	# calculate optimal control
 	v_opt = np.asarray(sol["x"][rmpc.first_state_index.v[0]::(rmpc.horizon - 1)])
 	u_opt = np.dot(K, (x_ori_0 - s_0)) + v_opt
+
+	# visualize the constraints
+	if vis_flag == 0:
+		for i in range(rmpc.horizon - 1):
+			constraints_varlist[i] = \
+				np.dot(F, np.asarray(sol["x"][rmpc.first_state_index.s[0] + i:rmpc.first_state_index.v[0]:rmpc.horizon])) \
+				+ np.dot(G, np.asarray(sol["x"][rmpc.first_state_index.v[0] + i::(rmpc.horizon - 1)]))
+
+		for i in range(np.shape(F)[0]):
+			tmp_list = [0] * (rmpc.horizon - 1)
+			for j in range(rmpc.horizon - 1):
+				tmp_list[j] = constraints_varlist[j][i]
+			constraint_var[i] = tmp_list
+	vis_flag = 1
 
 	# simulate forward
 	# we assume that all disturbances have the same range
@@ -284,6 +302,19 @@ while sol["f"] > threshold:
 	sol = rmpc.RMPC(h, s_0)
 	print(sol["f"])
 
-plt.plot(vis_x, vis_y, 'o-')
+# plot state trajectory
+plt.figure()
+plt.plot(vis_x, vis_y, 'o-', label='state trajectory')
+plt.legend()
+plt.grid()
+
+# plot constraints and corresponding bounds
+plt.figure()
+index = 4
+plt.plot(constraint_var[index], 'k.-', label='control input')
+plt.hlines(float(f[index]) - h[index], 0, N - 2, colors='r', label='input bounds')
+plt.legend()
+plt.grid()
+
 plt.show()
 print(end-start)
