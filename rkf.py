@@ -10,6 +10,7 @@
 import numpy as np
 from math import sqrt
 import matplotlib.pyplot as plt
+import time
 
 def rkf_update(A, B, E, C, Q, R, u, Sigma, z, xhat, delta):
 	'''
@@ -139,16 +140,21 @@ E     = np.array([[1, 0], [0, 1]])
 C     = np.array([[1, 0], [0, 1]])
 u     = np.array([[0.02]])
 
+start = time.clock()
+
 for i in range(1, n_iter):
 	xreal[i] = np.dot(A, xreal[i - 1]) + np.dot(B, u) + np.random.uniform(-0.1, 0.1, (2, 1))
 	x1_real[i] = float(xreal[i][0])
 	y = np.dot(C, xreal[i]) + np.random.uniform(-0.1, 0.1, (2, 1))
 	x1_measurements[i] = float(y[0])
 	(Sigma, xhat, delta) = rbe_update(A, B, E, C, Q, R, u, Sigma, y, xhat, delta)
+	print(Sigma)
 	(s0_min, s0_max, s1_min, s1_max) = rbe_project(Sigma, xhat, delta)
 	x1_lowerbound[i] = s0_min
 	x1_upperbound[i] = s0_max
 	x1_hat[i] = float(xhat[0])
+
+end = time.clock()
 
 x1_real = x1_real[1:len(x1_real)]
 x1_hat  = x1_hat[1:len(x1_hat)]
@@ -165,3 +171,4 @@ plt.axhline(x[0], label='nominal value without noise')
 plt.legend()
 plt.grid()
 plt.show()
+print(end-start)
