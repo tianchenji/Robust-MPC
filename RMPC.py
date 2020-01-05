@@ -227,7 +227,7 @@ def lqr(A, B, Q, R):
 
 # system dynaimcs
 A = np.array([[0.5,0],[0.5,1]])
-B = np.array([[0.6],[0]])
+B = np.array([[1],[0]])
 D = np.array([[-1,0],[0,-1]])
 
 # states and input constraints

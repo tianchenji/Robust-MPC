@@ -115,60 +115,61 @@ def rbe_project(Sigma, xhat, delta):
 
 	return (s0_min, s0_max, s1_min, s1_max)
 
-# bivariate example
-n_iter = 50
-x      = np.array([[12], [27]]) # real value
-Q      = np.array([[0.02, 0], [0, 0.02]])
-R      = np.array([[0.02, 0], [0, 0.02]])
+if __name__ == '__main__':
+	# bivariate example
+	n_iter = 50
+	x      = np.array([[12], [27]]) # real value
+	Q      = np.array([[0.02, 0], [0, 0.02]])
+	R      = np.array([[0.02, 0], [0, 0.02]])
 
-xreal           = [0] * n_iter
-xreal[0]        = x
-# we visualize the first state
-x1_hat          = [0] * n_iter
-x1_measurements = [0] * n_iter
-x1_real         = [0] * n_iter
-x1_lowerbound   = [0] * n_iter
-x1_upperbound   = [0] * n_iter
-x1_real[0]      = float(x[0])
-xhat  = x # initial guess
-delta = 0
+	xreal           = [0] * n_iter
+	xreal[0]        = x
+	# we visualize the first state
+	x1_hat          = [0] * n_iter
+	x1_measurements = [0] * n_iter
+	x1_real         = [0] * n_iter
+	x1_lowerbound   = [0] * n_iter
+	x1_upperbound   = [0] * n_iter
+	x1_real[0]      = float(x[0])
+	xhat  = x # initial guess
+	delta = 0
 
-Sigma = np.array([[1, 0], [0, 1]])
-A     = np.array([[1, 0], [0, 1]])
-B     = np.array([[1.5], [0.0]])
-E     = np.array([[1, 0], [0, 1]])
-C     = np.array([[1, 0], [0, 1]])
-u     = np.array([[0.02]])
+	Sigma = np.array([[1, 0], [0, 1]])
+	A     = np.array([[1, 0], [0, 1]])
+	B     = np.array([[1.5], [0.0]])
+	E     = np.array([[1, 0], [0, 1]])
+	C     = np.array([[1, 0], [0, 1]])
+	u     = np.array([[0.02]])
 
-start = time.clock()
+	start = time.clock()
 
-for i in range(1, n_iter):
-	xreal[i] = np.dot(A, xreal[i - 1]) + np.dot(B, u) + np.random.uniform(-0.1, 0.1, (2, 1))
-	x1_real[i] = float(xreal[i][0])
-	y = np.dot(C, xreal[i]) + np.random.uniform(-0.1, 0.1, (2, 1))
-	x1_measurements[i] = float(y[0])
-	(Sigma, xhat, delta) = rbe_update(A, B, E, C, Q, R, u, Sigma, y, xhat, delta)
-	print(Sigma)
-	(s0_min, s0_max, s1_min, s1_max) = rbe_project(Sigma, xhat, delta)
-	x1_lowerbound[i] = s0_min
-	x1_upperbound[i] = s0_max
-	x1_hat[i] = float(xhat[0])
+	for i in range(1, n_iter):
+		xreal[i] = np.dot(A, xreal[i - 1]) + np.dot(B, u) + np.random.uniform(-0.1, 0.1, (2, 1))
+		x1_real[i] = float(xreal[i][0])
+		y = np.dot(C, xreal[i]) + np.random.uniform(-0.1, 0.1, (2, 1))
+		x1_measurements[i] = float(y[0])
+		(Sigma, xhat, delta) = rbe_update(A, B, E, C, Q, R, u, Sigma, y, xhat, delta)
+		print(Sigma)
+		(s0_min, s0_max, s1_min, s1_max) = rbe_project(Sigma, xhat, delta)
+		x1_lowerbound[i] = s0_min
+		x1_upperbound[i] = s0_max
+		x1_hat[i] = float(xhat[0])
 
-end = time.clock()
+	end = time.clock()
 
-x1_real = x1_real[1:len(x1_real)]
-x1_hat  = x1_hat[1:len(x1_hat)]
-x1_measurements = x1_measurements[1:len(x1_measurements)]
-x1_lowerbound = x1_lowerbound[1:len(x1_lowerbound)]
-x1_upperbound = x1_upperbound[1:len(x1_upperbound)]
-plt.figure()
-plt.plot(x1_measurements, 'k+', label='noisy measurements')
-plt.plot(x1_hat, 'b.-', label='a posteri estimate')
-plt.plot(x1_real, '.-', label='real states')
-plt.plot(x1_lowerbound, 'r.-', label='lowerboud of state estimate')
-plt.plot(x1_upperbound, 'r.-', label='upperboud of state estimate')
-plt.axhline(x[0], label='nominal value without noise')
-plt.legend()
-plt.grid()
-plt.show()
-print(end-start)
+	x1_real = x1_real[1:len(x1_real)]
+	x1_hat  = x1_hat[1:len(x1_hat)]
+	x1_measurements = x1_measurements[1:len(x1_measurements)]
+	x1_lowerbound = x1_lowerbound[1:len(x1_lowerbound)]
+	x1_upperbound = x1_upperbound[1:len(x1_upperbound)]
+	plt.figure()
+	plt.plot(x1_measurements, 'k+', label='noisy measurements')
+	plt.plot(x1_hat, 'b.-', label='a posteri estimate')
+	plt.plot(x1_real, '.-', label='real states')
+	plt.plot(x1_lowerbound, 'r.-', label='lowerboud of state estimate')
+	plt.plot(x1_upperbound, 'r.-', label='upperboud of state estimate')
+	plt.axhline(x[0], label='nominal value without noise')
+	plt.legend()
+	plt.grid()
+	plt.show()
+	print(end-start)

@@ -10,6 +10,7 @@
 from casadi import *
 import numpy as np
 from scipy.linalg import solve_discrete_are
+from rkf import rbe_update, rbe_project
 import matplotlib.pyplot as plt
 import time
 
@@ -34,15 +35,19 @@ class FirstStateIndex:
 
 class RMPC:
 
-	def __init__(self, A, B, D, F, G, P, K, V, f, lb, ub, r, N):
+	def __init__(self, A, B, D, F, G, P, K, V_w, V_eps, f, lb_w, ub_w, lb_eps_0, ub_eps_0, r, N):
 		'''
 		A, B, D: system dynamic matrices
 		F, G: constriant matrices
+		P: terminal cost
 		K: fixed stabilizing feedback gain
-		V: the matrix bounding W
+		V_w: the matrix bounding W
+		V_eps: the matrix bounding eps_0
 		f: states and input constraints
-		lb: lowerbound of the system noise
-		ub: upperbound of the system noise
+		lb_w: lowerbound of the system noise
+		ub_w: upperbound of the system noise
+		lb_eps_0: lowerbound of eps_0
+		ub_eps_0: upperbound of eps_0
 		r: parameters in approximating mRPI
 		N: the prediction horizon
 		'''
@@ -54,12 +59,15 @@ class RMPC:
 		self.G = G
 		self.P = P
 		self.K = K
-		self.V = V
+		self.V_w = V_w
+		self.V_eps = V_eps
 		self.f = f
-		self.w_lb = lb
-		self.w_ub = ub
-		self.r = r
-		self.horizon = N
+		self.w_lb = lb_w
+		self.w_ub = ub_w
+		self.lb_eps_0 = lb_eps_0
+		self.ub_eps_0 = ub_eps_0
+		self.r        = r
+		self.horizon  = N
 		self.first_state_index = FirstStateIndex(A=A, B=B, N=N)
 		# number of optimization variables
 		self.num_of_x = np.shape(self.A)[0] * self.horizon + np.shape(self.B)[1] * (self.horizon - 1)
@@ -67,52 +75,99 @@ class RMPC:
 
 	def mRPI(self):
 		'''
-		mRPI returns the degree by which constraints are tightened by process noise
+		mRPI returns the degree by which constraints are tightened
 		'''
 
-		n_x = np.shape(self.A)[0]
-		n_w = np.shape(self.D)[1]
-		n_h = np.shape(self.F)[0]
-		h = [0]*n_h
+		n_x   = np.shape(self.A)[0]
+		n_w   = np.shape(self.D)[1]
+		n_h   = np.shape(self.F)[0]
+		h_w   = [0]*n_h
+		h_eps = [0]*n_h
+		h     = [0]*n_h
 
-		# calculating rho given r
+		# calculate vector h_w
+		# calculating rho_w given r
 		phi = self.A + np.dot(self.B, self.K)
-		n_rho = np.shape(self.V)[0]
-		mrho = [None]*n_rho
+		n_rho_w = np.shape(self.V_w)[0]
+		mrho_w = [None]*n_rho_w
 
 		# define optimization variables
 		w = SX.sym('w', n_w)
 
 		# define costs for linear programs in matrix form
-		tmp = np.dot(self.V, np.dot(np.linalg.pinv(self.D), np.dot(np.linalg.matrix_power(phi, self.r), self.D)))
-		rhocost = - mtimes(tmp, w)
+		tmp = np.dot(self.V_w, np.dot(np.linalg.pinv(self.D), np.dot(np.linalg.matrix_power(phi, self.r), self.D)))
+		rhocost_w = - mtimes(tmp, w)
 
-		# solve n_rho linear programs
-		for i in range(n_rho):
-			nlp = {'x':w, 'f':rhocost[i]}
+		# solve n_rho_w linear programs
+		for i in range(n_rho_w):
+			nlp = {'x':w, 'f':rhocost_w[i]}
 			opts = {}
 			opts["ipopt.print_level"] = 0
 			opts["print_time"] = 0
 			solver = nlpsol('solver', 'ipopt', nlp, opts)
 			x0 = [0] * n_w
 			res = solver(x0=x0, lbx=self.w_lb, ubx=self.w_ub)
-			mrho[i] = - res['f']
-		rho = max(mrho)
+			mrho_w[i] = - res['f']
+		rho_w = max(mrho_w)
 
-		# calculate vector h by solving r * n_h linear programs
+		# calculate vector h_w by solving r * n_h linear programs
 		for j in range(self.r):
 			tmp = self.F + np.dot(self.G, self.K)
-			hcost = - mtimes(np.dot(tmp, np.dot(np.linalg.matrix_power(phi, j), self.D)), w)
+			hcost_w = - mtimes(np.dot(tmp, np.dot(np.linalg.matrix_power(phi, j), self.D)), w)
 			for k in range(n_h):
-				nlp = {'x':w, 'f':hcost[k]}
+				nlp = {'x':w, 'f':hcost_w[k]}
 				opts = {}
 				opts["ipopt.print_level"] = 0
 				opts["print_time"] = 0
 				solver = nlpsol('solver', 'ipopt', nlp, opts)
 				x0 = [0] * n_w
 				res = solver(x0=x0, lbx=self.w_lb, ubx=self.w_ub)
-				h[k] += - res['f']
-		h = [i/(1 - rho) for i in h]
+				h_w[k] += - res['f']
+		h_w = [i/(1 - rho_w) for i in h_w]
+
+
+		# calculate vector h_eps
+		# calculating rho_eps given r
+		psi = np.dot(self.B, self.K)
+		n_rho_eps = np.shape(self.V_eps)[0]
+		mrho_eps = [None]*n_rho_eps
+
+		# define optimization variables
+		eps = SX.sym('eps', n_x)
+
+		# define costs for linear programs in matrix form
+		tmp = np.dot(self.V_eps, np.dot(np.linalg.pinv(psi), np.dot(np.linalg.matrix_power(phi, self.r), psi)))
+		rhocost_eps = - mtimes(tmp, eps)
+
+		# solve n_rho_eps linear programs
+		for i in range(n_rho_eps):
+			nlp = {'x':eps, 'f':rhocost_eps[i]}
+			opts = {}
+			opts["ipopt.print_level"] = 0
+			opts["print_time"] = 0
+			solver = nlpsol('solver', 'ipopt', nlp, opts)
+			x0 = [0] * n_x
+			res = solver(x0=x0, lbx=self.lb_eps_0, ubx=self.ub_eps_0)
+			mrho_eps[i] = - res['f']
+		rho_eps = max(mrho_eps)
+
+		# calculate vector h_eps by solving r * n_h linear programs
+		for j in range(self.r):
+			tmp = self.F + np.dot(self.G, self.K)
+			hcost_eps = - mtimes(np.dot(tmp, np.dot(np.linalg.matrix_power(phi, j), psi)), eps)
+			for k in range(n_h):
+				nlp = {'x':eps, 'f':hcost_eps[k]}
+				opts = {}
+				opts["ipopt.print_level"] = 0
+				opts["print_time"] = 0
+				solver = nlpsol('solver', 'ipopt', nlp, opts)
+				x0 = [0] * n_x
+				res = solver(x0=x0, lbx=self.lb_eps_0, ubx=self.ub_eps_0)
+				h_eps[k] += - res['f']
+		h_eps = [i/(1 - rho_eps) for i in h_eps]
+
+		h = [h_w[i] + h_eps[i] for i in range(len(h_w))]
+
 		return h
 
 	def SEerr(self, lbe, ube):
@@ -235,18 +290,26 @@ def lqr(A, B, Q, R):
 
 # system dynaimcs
 A = np.array([[0.5,0],[0.5,1]])
-B = np.array([[0.6],[0]])
+B = np.array([[1],[0]])
 D = np.array([[-1,0],[0,-1]])
+
+# observer matrix
+H = np.array([[1, 0], [0, 1]])
 
 # states and input constraints
 F = np.array([[-10/3,0],[10/7,0],[0,-2],[0,2],[0,0],[0,0]])
 G = np.array([[0],[0],[0],[0],[-10/3],[5]])
 f = np.array([[1],[1],[1],[1],[1],[1]])
 
-# bounds for noise
-V = np.array([[20,0],[-20,0],[0,20],[0,-20]])
-lb=[-0.05] * 2
-ub=[0.05] * 2
+# bounds for process noise
+V_w  = np.array([[20,0],[-20,0],[0,20],[0,-20]])
+lb_w = [-0.05] * 2
+ub_w = [0.05] * 2
+
+# initial constraints and initial guess
+sigma = np.array([[0.001, 0], [0, 0.001]])
+x_hat = np.array([[0.58],[-0.18]])
+delta = 0
 
 # calculate LQR gain matrix
 Q      = np.array([[1, 0], [0, 1]])
@@ -266,7 +329,18 @@ vis_x = []
 vis_y = []
 vis_x.append(list(map(float,x_ori_0[0])))
 vis_y.append(list(map(float,x_ori_0[1])))
-rmpc = RMPC(A=A, B=B, D=D, F=F, G=G, P=P, K=K, V=V, f=f, lb=lb, ub=ub, r=r, N=N)
+
+# calculate epsilon_0
+(xreal1_min, xreal1_max, xreal2_min, xreal2_max) = rbe_project(sigma, x_hat, delta)
+err1 = (xreal1_max - xreal1_min) / 2
+err2 = (xreal2_max - xreal2_min) / 2
+lb_eps_0 = [- err1, - err2]
+ub_eps_0 = [err1, err2]
+
+V_eps = np.array([[1/err1,0],[-1/err1,0],[0,1/err2],[0,-1/err2]])
+
+rmpc = RMPC(A=A, B=B, D=D, F=F, G=G, P=P, K=K, V_w=V_w, V_eps=V_eps, f=f, lb_w=lb_w, ub_w=ub_w, \
+																	lb_eps_0=lb_eps_0, ub_eps_0=ub_eps_0, r=r, N=N)
 start = time.clock()
 h = list(map(float, rmpc.mRPI()))
 if max(h) >= 1:
