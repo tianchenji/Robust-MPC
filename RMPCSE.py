@@ -10,7 +10,7 @@
 from casadi import *
 import numpy as np
 from scipy.linalg import solve_discrete_are
-from rkf import rbe_update, rbe_project
+from rkf import rbe_update, rbe_project, rbe_stable
 import matplotlib.pyplot as plt
 import time
 
@@ -170,18 +170,46 @@ class RMPC:
 
 		return h
 
-	def SEerr(self, lbe, ube):
+	def SEerr(self, lb_eps, ub_eps):
 		'''
 		SEerr returns the degree by which constraints are tightened by measurement noise
 		'''
 
-		n_eps = np.shape(self.K)[1]
-		n_p   = np.shape(self.G)[0]
+		n_eps  = np.shape(self.A)[0]
+		n_p    = np.shape(self.G)[0]
+		p      = [0]*n_p
+		p_list = []
 
-	def RMPC(self, h, s_0):
+		# define optimization variables
+		eps = SX.sym('eps', n_eps)
+
+		# define costs for linear programs in matrix form
+		tmp = np.dot(self.G, self.K)
+		pcost = - mtimes(tmp, eps)
+
+		# calculate vector p
+		for i in range(len(lb_eps)):
+			for j in range(n_p):
+				nlp = {'x':eps, 'f':pcost[j]}
+				opts = {}
+				opts["ipopt.print_level"] = 0
+				opts["print_time"] = 0
+				solver = nlpsol('solver', 'ipopt', nlp, opts)
+				x0 = [0] * n_eps
+				res = solver(x0=x0, lbx=lb_eps[i], ubx=ub_eps[i])
+				p[j] = - res['f']
+			p = list(map(float, p))
+			p_list.append(p)
+			p = [0] * n_p
+
+		return p_list
+
+	def RMPC(self, h, s_0, p_list, time_index):
 		'''
 		RMPC returns optimal control sequence
 		'''
+
+		num_of_ss = len(p_list)
 
 		# initial variables
 		x_0 = [0] * self.num_of_x
@@ -206,9 +234,20 @@ class RMPC:
 
 		for i in range(np.shape(self.A)[0] * self.horizon, self.num_of_g):
 			g_lowerbound[i] = -exp(10)
-		for i in range(self.horizon):
-			for j in range(np.shape(self.F)[0]):
-				g_upperbound[ineq_cons_index + j * self.horizon + i] = self.f[j] - h[j]
+		#for i in range(self.horizon):
+			#for j in range(np.shape(self.F)[0]):
+				#g_upperbound[ineq_cons_index + j * self.horizon + i] = self.f[j] - h[j]
+		if time_index < num_of_ss - 1:
+			for i in range(num_of_ss - time_index - 1):
+				for j in range(np.shape(self.F)[0]):
+					g_upperbound[ineq_cons_index + j * self.horizon + i] = self.f[j] - h[j] - p_list[time_index + i][j]
+			for i in range(num_of_ss - time_index - 1, self.horizon):
+				for j in range(np.shape(self.F)[0]):
+					g_upperbound[ineq_cons_index + j * self.horizon + i] = self.f[j] - h[j] - p_list[num_of_ss - 1][j]
+		else:
+			for i in range(self.horizon):
+				for j in range(np.shape(self.F)[0]):
+					g_upperbound[ineq_cons_index + j * self.horizon + i] = self.f[j] - h[j] - p_list[num_of_ss - 1][j]
 		# no constraints on input at time step N - 1
 		g_upperbound[self.num_of_g - 1] = exp(10)
 		g_upperbound[self.num_of_g - self.horizon - 1] = exp(10)
@@ -306,15 +345,23 @@ V_w  = np.array([[20,0],[-20,0],[0,20],[0,-20]])
 lb_w = [-0.05] * 2
 ub_w = [0.05] * 2
 
+# bounds for measurement noise
+lb_zeta = [-0.01] * 2
+ub_zeta = [0.01] * 2
+
 # initial constraints and initial guess
 sigma = np.array([[0.001, 0], [0, 0.001]])
 x_hat = np.array([[0.58],[-0.18]])
 delta = 0
 
+# instantaneous constraints in filtering
+Q = np.array([[2*ub_w[0]**2, 0], [0, 2*ub_w[0]**2]])
+R = np.array([[2*ub_zeta[0]**2, 0], [0, 2*ub_zeta[0]**2]])
+
 # calculate LQR gain matrix
-Q      = np.array([[1, 0], [0, 1]])
-R      = np.array([[0.01]])
-(P, K) = lqr(A, B, Q, R)
+Q_lqr  = np.array([[1, 0], [0, 1]])
+R_lqr  = np.array([[0.01]])
+(P, K) = lqr(A, B, Q_lqr, R_lqr)
 
 # mRPI parameters
 r = 6
@@ -341,12 +388,22 @@ V_eps = np.array([[1/err1,0],[-1/err1,0],[0,1/err2],[0,-1/err2]])
 
 rmpc = RMPC(A=A, B=B, D=D, F=F, G=G, P=P, K=K, V_w=V_w, V_eps=V_eps, f=f, lb_w=lb_w, ub_w=ub_w, \
 																	lb_eps_0=lb_eps_0, ub_eps_0=ub_eps_0, r=r, N=N)
-start = time.clock()
+
+#(lb_eps, ub_eps) = rbe_stable(A, D, H, Q, R, sigma)
+#p_list = rmpc.SEerr(lb_eps, ub_eps)
+
 h = list(map(float, rmpc.mRPI()))
 if max(h) >= 1:
 	print("Robustly positively invariant set is empty! Cannot achieve robustness!")
 	sys.exit()
-sol = rmpc.RMPC(h, s_0)
+
+# calculate states estimates error
+(lb_eps, ub_eps) = rbe_stable(A, D, H, Q, R, sigma)
+p_list = rmpc.SEerr(lb_eps, ub_eps)
+
+time_index = 0
+start = time.clock()
+sol = rmpc.RMPC(h, s_0, p_list, time_index)
 end = time.clock()
 
 # constraints visualization variables
@@ -376,16 +433,17 @@ while sol["f"] > threshold:
 
 	# simulate forward
 	# we assume that all disturbances have the same range
-	disturbance = np.random.uniform(lb[0], ub[0], (np.shape(D)[1], 1))
+	disturbance = np.random.uniform(lb_w[0], ub_w[0], (np.shape(D)[1], 1))
 	x_ori_0_next = np.dot(A, x_ori_0) + np.dot(B, u_opt) + np.dot(D, disturbance)
 	s_0_next = np.dot(A, s_0) + np.dot(B, v_opt)
 	x_ori_0 = x_ori_0_next
 	s_0 = s_0_next
+	time_index += 1
 
 	vis_x.append(list(map(float,x_ori_0[0])))
 	vis_y.append(list(map(float,x_ori_0[1])))
 
-	sol = rmpc.RMPC(h, s_0)
+	sol = rmpc.RMPC(h, s_0, p_list, time_index)
 	print(sol["f"])
 
 # plot state trajectory

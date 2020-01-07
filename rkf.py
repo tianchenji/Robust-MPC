@@ -12,6 +12,10 @@ from math import sqrt
 import matplotlib.pyplot as plt
 import time
 
+# set filtering parameters
+beta = 0.5
+rho  = 0.5
+
 def rkf_update(A, B, E, C, Q, R, u, Sigma, z, xhat, delta):
 	'''
 	robust filtering algorithm for energy constraint
@@ -57,10 +61,6 @@ def rbe_update(A, B, E, C, Q, R, u, Sigma, z, xhat, delta):
 				xhat: a posteri state estimate at time k
 				delta: shrinkage at time k
 	'''
-
-	# set filtering parameters
-	beta = 0.5
-	rho  = 0.3
 
 	# update Sigma
 	Sigma_priori  = (1 / (1 - beta)) * np.dot(A, np.dot(Sigma, A.T)) + (1 / beta) * np.dot(E, np.dot(Q, E.T))
@@ -114,6 +114,50 @@ def rbe_project(Sigma, xhat, delta):
 	s1_max = float(s1_0 + norm_w1)
 
 	return (s0_min, s0_max, s1_min, s1_max)
+
+def rbe_stable(A, E, C, Q, R, sigma):
+	'''
+	rbe_stable returns upperbounds and lowerbounds of state estimates error until convergence
+	Inputs:		A, E, C: system dynamics
+				Q, R: energy constraints of process noise and measurement noise respectively
+				sigma: initial constraints for state estimates error
+	Outputs:	a list containing upperbounds and lowerbounds of state estimates error
+	'''
+
+	num_of_iter = 100
+	xhat = np.array([[0],[0]])
+	delta = 0
+	lb_eps = []
+	ub_eps = []
+
+	# iterate 100 times to get steady state shape matrix simga_inf
+	sigma_tmp = sigma
+	for i in range(num_of_iter):
+		sigma_priori  = (1 / (1 - beta)) * np.dot(A, np.dot(sigma_tmp, A.T)) + (1 / beta) * np.dot(E, np.dot(Q, E.T))
+		sigma_posteri = np.linalg.inv((1 - rho) * np.linalg.inv(sigma_priori) + rho * np.dot(C.T, np.dot(np.linalg.inv(R), C)))
+		sigma_tmp = sigma_posteri
+	sigma_inf = sigma_tmp
+
+	# store the upperbounds and lowerbounds until convergence
+	while np.linalg.norm(sigma - sigma_inf) > 1e-5:
+		(xreal1_min, xreal1_max, xreal2_min, xreal2_max) = rbe_project(sigma, xhat, delta)
+		err1 = (xreal1_max - xreal1_min) / 2
+		err2 = (xreal2_max - xreal2_min) / 2
+		lb_eps.append([- err1, - err2])
+		ub_eps.append([err1, err2])
+
+		sigma_priori  = (1 / (1 - beta)) * np.dot(A, np.dot(sigma, A.T)) + (1 / beta) * np.dot(E, np.dot(Q, E.T))
+		sigma_posteri = np.linalg.inv((1 - rho) * np.linalg.inv(sigma_priori) + rho * np.dot(C.T, np.dot(np.linalg.inv(R), C)))
+		sigma = sigma_posteri
+
+	# store the steady state bounds in the end
+	(xreal1_min, xreal1_max, xreal2_min, xreal2_max) = rbe_project(sigma_inf, xhat, delta)
+	err1 = (xreal1_max - xreal1_min) / 2
+	err2 = (xreal2_max - xreal2_min) / 2
+	lb_eps.append([- err1, - err2])
+	ub_eps.append([err1, err2])
+
+	return (lb_eps, ub_eps)
 
 if __name__ == '__main__':
 	# bivariate example
