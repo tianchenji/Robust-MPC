@@ -78,6 +78,20 @@ class RMPC:
 		mRPI returns the degree by which constraints are tightened
 		'''
 
+		psi = np.dot(self.B, self.K)
+		if np.linalg.matrix_rank(psi) < np.shape(psi)[0]:
+			print("The matrix is row rank deficient. Calculating outbounding convex set...")
+			h = self.mRPI_deficient()
+		else:
+			h = self.mRPI_full()
+
+		return h
+
+	def mRPI_full(self):
+		'''
+		mRPI_full is active when the matrix is full row rank
+		'''
+
 		n_x   = np.shape(self.A)[0]
 		n_w   = np.shape(self.D)[1]
 		n_h   = np.shape(self.F)[0]
@@ -167,6 +181,115 @@ class RMPC:
 		h_eps = [i/(1 - rho_eps) for i in h_eps]
 
 		h = [h_w[i] + h_eps[i] for i in range(len(h_w))]
+
+		return h
+
+	def mRPI_deficient(self):
+		'''
+		mRPI_deficient is active when the matrix is row rank deficient
+		Note: we use the fact that eps_0 is symmetric about the origin when computing h_theta
+		'''
+
+		n_x     = np.shape(self.A)[0]
+		n_w     = np.shape(self.D)[1]
+		n_h     = np.shape(self.F)[0]
+		h_w     = [0]*n_h
+		h_theta = [0]*n_h
+		h       = [0]*n_h
+
+		# calculate vector h_w
+		# calculating rho_w given r
+		phi = self.A + np.dot(self.B, self.K)
+		n_rho_w = np.shape(self.V_w)[0]
+		mrho_w = [None]*n_rho_w
+
+		# define optimization variables
+		w = SX.sym('w', n_w)
+
+		# define costs for linear programs in matrix form
+		tmp = np.dot(self.V_w, np.dot(np.linalg.pinv(self.D), np.dot(np.linalg.matrix_power(phi, self.r), self.D)))
+		rhocost_w = - mtimes(tmp, w)
+
+		# solve n_rho_w linear programs
+		for i in range(n_rho_w):
+			nlp = {'x':w, 'f':rhocost_w[i]}
+			opts = {}
+			opts["ipopt.print_level"] = 0
+			opts["print_time"] = 0
+			solver = nlpsol('solver', 'ipopt', nlp, opts)
+			x0 = [0] * n_w
+			res = solver(x0=x0, lbx=self.w_lb, ubx=self.w_ub)
+			mrho_w[i] = - res['f']
+		rho_w = max(mrho_w)
+
+		# calculate vector h_w by solving r * n_h linear programs
+		for j in range(self.r):
+			tmp = self.F + np.dot(self.G, self.K)
+			hcost_w = - mtimes(np.dot(tmp, np.dot(np.linalg.matrix_power(phi, j), self.D)), w)
+			for k in range(n_h):
+				nlp = {'x':w, 'f':hcost_w[k]}
+				opts = {}
+				opts["ipopt.print_level"] = 0
+				opts["print_time"] = 0
+				solver = nlpsol('solver', 'ipopt', nlp, opts)
+				x0 = [0] * n_w
+				res = solver(x0=x0, lbx=self.w_lb, ubx=self.w_ub)
+				h_w[k] += - res['f']
+		h_w = [i/(1 - rho_w) for i in h_w]
+
+
+		# calculate vector h_theta
+		# calculating rho_theta given r
+		psi = np.dot(self.B, self.K)
+
+		# calculating outbounding convex set
+		epsilon  = 1e-5
+		psi_abs  = np.abs(psi)
+		lb_theta = np.dot(psi_abs, np.array(self.lb_eps_0).reshape(len(self.lb_eps_0), 1))
+		ub_theta = np.dot(psi_abs, np.array(self.ub_eps_0).reshape(len(self.ub_eps_0), 1))
+		lb_theta = lb_theta - np.array([[epsilon], [epsilon]])
+		ub_theta = ub_theta + np.array([[epsilon], [epsilon]])
+
+		V_theta = np.array([[1/ub_theta[0], 0], [1/lb_theta[0], 0], [0, 1/ub_theta[1]], [0, 1/lb_theta[1]]])
+
+		n_rho_theta = np.shape(V_theta)[0]
+		mrho_theta = [None]*n_rho_theta
+
+		# define optimization variables
+		theta = SX.sym('theta', n_x)
+
+		# define costs for linear programs in matrix form
+		tmp = np.dot(V_theta, np.linalg.matrix_power(phi, self.r))
+		rhocost_theta = - mtimes(tmp, theta)
+
+		# solve n_rho_theta linear programs
+		for i in range(n_rho_theta):
+			nlp = {'x':theta, 'f':rhocost_theta[i]}
+			opts = {}
+			opts["ipopt.print_level"] = 0
+			opts["print_time"] = 0
+			solver = nlpsol('solver', 'ipopt', nlp, opts)
+			x0 = [0] * n_x
+			res = solver(x0=x0, lbx=lb_theta, ubx=ub_theta)
+			mrho_theta[i] = - res['f']
+		rho_theta = max(mrho_theta)
+
+		# calculate vector h_theta by solving r * n_h linear programs
+		for j in range(self.r):
+			tmp = self.F + np.dot(self.G, self.K)
+			hcost_theta = - mtimes(np.dot(tmp, np.linalg.matrix_power(phi, j)), theta)
+			for k in range(n_h):
+				nlp = {'x':theta, 'f':hcost_theta[k]}
+				opts = {}
+				opts["ipopt.print_level"] = 0
+				opts["print_time"] = 0
+				solver = nlpsol('solver', 'ipopt', nlp, opts)
+				x0 = [0] * n_x
+				res = solver(x0=x0, lbx=lb_theta, ubx=ub_theta)
+				h_theta[k] += - res['f']
+		h_theta = [i/(1 - rho_theta) for i in h_theta]
+
+		h = [h_w[i] + h_theta[i] for i in range(len(h_w))]
 
 		return h
 
@@ -350,8 +473,8 @@ lb_zeta = [-0.01] * 2
 ub_zeta = [0.01] * 2
 
 # initial constraints and initial guess
-sigma = np.array([[0.001, 0], [0, 0.001]])
-x_hat = np.array([[0.58],[-0.18]])
+sigma = np.array([[0.0005, 0], [0, 0.0005]])
+x_hat = np.array([[0.59],[-0.19]])
 delta = 0
 
 # instantaneous constraints in filtering
@@ -364,7 +487,7 @@ R_lqr  = np.array([[0.01]])
 (P, K) = lqr(A, B, Q_lqr, R_lqr)
 
 # mRPI parameters
-r = 6
+r = 30
 
 # prediction horizon
 N = 10
@@ -415,7 +538,7 @@ vis_flag            = 0
 while sol["f"] > threshold:
 	# calculate optimal control
 	v_opt = np.asarray(sol["x"][rmpc.first_state_index.v[0]::(rmpc.horizon - 1)])
-	u_opt = np.dot(K, (x_ori_0 - s_0)) + v_opt
+	u_opt = np.dot(K, (x_hat - s_0)) + v_opt
 
 	# visualize the constraints
 	if vis_flag == 0:
@@ -433,11 +556,17 @@ while sol["f"] > threshold:
 
 	# simulate forward
 	# we assume that all disturbances have the same range
-	disturbance = np.random.uniform(lb_w[0], ub_w[0], (np.shape(D)[1], 1))
-	x_ori_0_next = np.dot(A, x_ori_0) + np.dot(B, u_opt) + np.dot(D, disturbance)
+	disturbance_sys = np.random.uniform(lb_w[0], ub_w[0], (np.shape(D)[1], 1))
+	x_ori_0_next = np.dot(A, x_ori_0) + np.dot(B, u_opt) + np.dot(D, disturbance_sys)
 	s_0_next = np.dot(A, s_0) + np.dot(B, v_opt)
 	x_ori_0 = x_ori_0_next
 	s_0 = s_0_next
+
+	# estimate current states
+	disturbance_mea = np.random.uniform(lb_zeta[0], ub_zeta[0], (np.shape(H)[0], 1))
+	y = np.dot(H, x_ori_0) + disturbance_mea
+	(sigma, x_hat, delta) = rbe_update(A, B, D, H, Q, R, u_opt, sigma, y, x_hat, delta)
+
 	time_index += 1
 
 	vis_x.append(list(map(float,x_ori_0[0])))
