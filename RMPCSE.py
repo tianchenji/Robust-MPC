@@ -451,30 +451,30 @@ def lqr(A, B, Q, R):
 
 
 # system dynaimcs
-A = np.array([[0.5,0],[0.5,1]])
-B = np.array([[1],[0]])
-D = np.array([[-1,0],[0,-1]])
+A = np.array([[1.2,1.5],[0,1.3]])
+B = np.array([[0],[1]])
+D = np.array([[1,0],[0,1]])
 
 # observer matrix
 H = np.array([[1, 0], [0, 1]])
 
 # states and input constraints
-F = np.array([[-10/3,0],[10/7,0],[0,-2],[0,2],[0,0],[0,0]])
-G = np.array([[0],[0],[0],[0],[-10/3],[5]])
+F = np.array([[-0.1,0],[0.1,0],[0,-0.1],[0,0.1],[0,0],[0,0]])
+G = np.array([[0],[0],[0],[0],[-1],[1]])
 f = np.array([[1],[1],[1],[1],[1],[1]])
 
-# bounds for process noise
-V_w  = np.array([[20,0],[-20,0],[0,20],[0,-20]])
-lb_w = [-0.05] * 2
-ub_w = [0.05] * 2
+# bounds on process noise
+V_w  = np.array([[10,0],[-10,0],[0,10],[0,-10]])
+lb_w = [-0.1] * 2
+ub_w = [0.1] * 2
 
-# bounds for measurement noise
+# bounds on measurement noise
 lb_zeta = [-0.01] * 2
 ub_zeta = [0.01] * 2
 
 # initial constraints and initial guess
 sigma = np.array([[0.0005, 0], [0, 0.0005]])
-x_hat = np.array([[0.59],[-0.19]])
+x_hat = np.array([[-6.69],[1.39]])
 delta = 0
 
 # instantaneous constraints in filtering
@@ -483,18 +483,19 @@ R = np.array([[2*ub_zeta[0]**2, 0], [0, 2*ub_zeta[0]**2]])
 
 # calculate LQR gain matrix
 Q_lqr  = np.array([[1, 0], [0, 1]])
-R_lqr  = np.array([[0.01]])
+R_lqr  = np.array([[10]])
 (P, K) = lqr(A, B, Q_lqr, R_lqr)
 
 # mRPI parameters
-r = 30
+r = 25
 
 # prediction horizon
-N = 10
+N = 20
 
-s_0 = np.array([[0.6],[-0.2]])
+s_0 = np.array([[-6.7],[1.4]])
 x_ori_0 = s_0
-threshold = pow(10, -5)
+threshold = pow(10, -8)
+u_realized = []
 vis_x = []
 vis_y = []
 vis_x.append(list(map(float,x_ori_0[0])))
@@ -539,6 +540,7 @@ while sol["f"] > threshold:
 	# calculate optimal control
 	v_opt = np.asarray(sol["x"][rmpc.first_state_index.v[0]::(rmpc.horizon - 1)])
 	u_opt = np.dot(K, (x_hat - s_0)) + v_opt
+	u_realized.append(list(map(float,u_opt)))
 
 	# visualize the constraints
 	if vis_flag == 0:
@@ -577,7 +579,9 @@ while sol["f"] > threshold:
 
 # plot state trajectory
 plt.figure()
-plt.plot(vis_x, vis_y, 'o-', label='state trajectory')
+plt.plot(vis_x, vis_y, '.-', label='realized closed-loop trajectory')
+plt.xlabel('$x_1$')
+plt.ylabel('$x_2$')
 plt.legend()
 plt.grid()
 
@@ -591,11 +595,29 @@ plt.legend()
 plt.grid()
 '''
 
-# plot constraints and corresponding bounds (direct way)
+# plot constraints and corresponding bounds on control inputs (direct way)
 plt.figure()
 plt.plot([i * float(1/G[4]) for i in constraint_var[4]], 'k.-', label='auxiliary control input')
-plt.hlines(float(1/G[4])*(float(f[4]) - h[4]), 0, N - 2, colors='r')
-plt.hlines(float(1/G[5])*(float(f[5]) - h[5]), 0, N - 2, colors='r')
+time_step = list(range(N - 1))
+constraint_control_1 = [float(1/G[4])*(float(f[4]) - h[4] - p_list[len(p_list) - 1][4])] * (N - 1)
+constraint_control_2 = [float(1/G[5])*(float(f[5]) - h[5] - p_list[len(p_list) - 1][5])] * (N - 1)
+for i in range(len(p_list) - 1):
+	constraint_control_1[i] = float(1/G[4])*(float(f[4]) - h[4] - p_list[i][4])
+	constraint_control_2[i] = float(1/G[5])*(float(f[5]) - h[5] - p_list[i][5])
+plt.plot(time_step, constraint_control_1, 'r-')
+plt.plot(time_step, constraint_control_2, 'r-')
+plt.axis([0, N-2, -0.8, 0.8])
+plt.xlabel('time steps ($t$)')
+plt.legend()
+plt.grid()
+
+# plot realized optimal control inputs
+plt.figure()
+plt.plot(u_realized, '.-', label='realized optimal control inputs')
+plt.axhline(f[4]/G[4], color='r')
+plt.axhline(f[5]/G[5], color='r')
+plt.axis([0, len(u_realized)-1, -1.4, 1.4])
+plt.xlabel('time steps ($t$)')
 plt.legend()
 plt.grid()
 

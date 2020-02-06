@@ -226,34 +226,35 @@ def lqr(A, B, Q, R):
 
 
 # system dynaimcs
-A = np.array([[0.5,0],[0.5,1]])
-B = np.array([[1],[0]])
-D = np.array([[-1,0],[0,-1]])
+A = np.array([[1.2,1.5],[0,1.3]])
+B = np.array([[0],[1]])
+D = np.array([[1,0],[0,1]])
 
 # states and input constraints
-F = np.array([[-10/3,0],[10/7,0],[0,-2],[0,2],[0,0],[0,0]])
-G = np.array([[0],[0],[0],[0],[-10/3],[5]])
+F = np.array([[-0.1,0],[0.1,0],[0,-0.1],[0,0.1],[0,0],[0,0]])
+G = np.array([[0],[0],[0],[0],[-1],[1]])
 f = np.array([[1],[1],[1],[1],[1],[1]])
 
-# bounds for noise
-V = np.array([[20,0],[-20,0],[0,20],[0,-20]])
-lb=[-0.05] * 2
-ub=[0.05] * 2
+# bounds on noise
+V = np.array([[10,0],[-10,0],[0,10],[0,-10]])
+lb=[-0.1] * 2
+ub=[0.1] * 2
 
 # calculate LQR gain matrix
 Q      = np.array([[1, 0], [0, 1]])
-R      = np.array([[0.01]])
+R      = np.array([[10]])
 (P, K) = lqr(A, B, Q, R)
 
 # mRPI parameters
-r = 6
+r = 25
 
 # prediction horizon
-N = 10
+N = 20
 
-s_0 = np.array([[0.6],[-0.2]])
+s_0 = np.array([[-6.7],[1.4]])
 x_ori_0 = s_0
-threshold = pow(10, -5)
+threshold = pow(10, -8)
+u_realized = []
 vis_x = []
 vis_y = []
 vis_x.append(list(map(float,x_ori_0[0])))
@@ -277,6 +278,7 @@ while sol["f"] > threshold:
 	# calculate optimal control
 	v_opt = np.asarray(sol["x"][rmpc.first_state_index.v[0]::(rmpc.horizon - 1)])
 	u_opt = np.dot(K, (x_ori_0 - s_0)) + v_opt
+	u_realized.append(list(map(float,u_opt)))
 
 	# visualize the constraints
 	if vis_flag == 0:
@@ -308,7 +310,10 @@ while sol["f"] > threshold:
 
 # plot state trajectory
 plt.figure()
-plt.plot(vis_x, vis_y, 'o-', label='state trajectory')
+plt.plot(vis_x, vis_y, '.-', label='realized closed-loop trajectory')
+#plt.axis([-7, 0.5, -0.2, 1.6])
+plt.xlabel('$x_1$')
+plt.ylabel('$x_2$')
 plt.legend()
 plt.grid()
 
@@ -322,11 +327,23 @@ plt.legend()
 plt.grid()
 '''
 
-# plot constraints and corresponding bounds (direct way)
+# plot constraints and corresponding bounds on control inputs (direct way)
 plt.figure()
-plt.plot([i * float(1/G[4]) for i in constraint_var[4]], 'k.-', label='auxiliary control input')
-plt.hlines(float(1/G[4])*(float(f[4]) - h[4]), 0, N - 2, colors='r')
-plt.hlines(float(1/G[5])*(float(f[5]) - h[5]), 0, N - 2, colors='r')
+plt.plot([i * float(1/G[4]) for i in constraint_var[4]], 'k.-', label='auxiliary control input planned at $t=0$')
+plt.axhline(float(1/G[4])*(float(f[4]) - h[4]), color='r')
+plt.axhline(float(1/G[5])*(float(f[5]) - h[5]), color='r')
+plt.axis([0, N-2, -0.8, 0.8])
+plt.xlabel('time steps ($t$)')
+plt.legend()
+plt.grid()
+
+# plot realized optimal control inputs
+plt.figure()
+plt.plot(u_realized, '.-', label='realized optimal control inputs')
+plt.axhline(f[4]/G[4], color='r')
+plt.axhline(f[5]/G[5], color='r')
+plt.axis([0, len(u_realized)-1, -1.4, 1.4])
+plt.xlabel('time steps ($t$)')
 plt.legend()
 plt.grid()
 
