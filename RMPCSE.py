@@ -616,8 +616,8 @@ r = 25
 # prediction horizon
 N = 20
 
-s_0 = np.array([[-6.7],[1.4]])
-x_ori_0 = s_0
+s_0 = x_hat
+x_ori_0 = np.array([[-6.7],[1.4]])
 threshold = pow(10, -8)
 u_realized = []
 vis_x = []
