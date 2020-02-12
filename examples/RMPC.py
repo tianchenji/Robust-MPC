@@ -12,6 +12,7 @@ import numpy as np
 from scipy.linalg import solve_discrete_are
 import matplotlib.pyplot as plt
 import time
+import pickle
 
 class FirstStateIndex:
 	'''
@@ -319,6 +320,9 @@ plt.ylabel('$x_2$')
 plt.legend()
 plt.grid()
 
+#RMPC_traj = list(zip(vis_x, vis_y))
+#pickle.dump(RMPC_traj, open( "RMPC_traj.pkl", "wb"))
+
 '''
 # plot constraints and corresponding bounds (indirect way)
 plt.figure()
@@ -332,12 +336,18 @@ plt.grid()
 # plot constraints and corresponding bounds on control inputs (direct way)
 plt.figure()
 plt.plot([i * float(1/G[4]) for i in constraint_var[4]], 'k.-', label='auxiliary control input planned at $t=0$')
+#time_step = list(range(N - 1))
+#constraint_control_1 = [float(1/G[4])*(float(f[4]) - h[4])] * (N - 1)
+#constraint_control_2 = [float(1/G[5])*(float(f[5]) - h[5])] * (N - 1)
 plt.axhline(float(1/G[4])*(float(f[4]) - h[4]), color='r')
 plt.axhline(float(1/G[5])*(float(f[5]) - h[5]), color='r')
 plt.axis([0, N-2, -0.8, 0.8])
 plt.xlabel('time steps ($t$)')
 plt.legend()
 plt.grid()
+
+#RMPC_planned_input = list(zip([i * float(1/G[4]) for i in constraint_var[4]], time_step, constraint_control_1, constraint_control_2))
+#pickle.dump(RMPC_planned_input, open( "RMPC_planned_input.pkl", "wb"))
 
 # plot realized optimal control inputs
 plt.figure()
@@ -348,6 +358,8 @@ plt.axis([0, len(u_realized)-1, -1.4, 1.4])
 plt.xlabel('time steps ($t$)')
 plt.legend()
 plt.grid()
+
+#pickle.dump(u_realized, open( "RMPC_realized_input.pkl", "wb"))
 
 # plot optimal cost
 plt.figure()

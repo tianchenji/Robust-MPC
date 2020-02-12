@@ -13,6 +13,7 @@ from scipy.linalg import solve_discrete_are
 from rkf import rbe_update, rbe_project, rbe_stable
 import matplotlib.pyplot as plt
 import time
+import pickle
 
 class FirstStateIndex:
 	'''
@@ -711,6 +712,9 @@ plt.ylabel('$x_2$')
 plt.legend()
 plt.grid()
 
+#RMPCSE_traj = list(zip(vis_x, vis_y))
+#pickle.dump(RMPCSE_traj, open( "RMPCSE_traj.pkl", "wb"))
+
 '''
 # plot constraints and corresponding bounds (indirect way)
 plt.figure()
@@ -737,6 +741,9 @@ plt.xlabel('time steps ($t$)')
 plt.legend()
 plt.grid()
 
+#RMPCSE_planned_input = list(zip([i * float(1/G[4]) for i in constraint_var[4]], time_step, constraint_control_1, constraint_control_2))
+#pickle.dump(RMPCSE_planned_input, open( "RMPCSE_planned_input.pkl", "wb"))
+
 # plot realized optimal control inputs
 plt.figure()
 plt.plot(u_realized, '.-', label='realized optimal control inputs')
@@ -746,6 +753,8 @@ plt.axis([0, len(u_realized)-1, -1.4, 1.4])
 plt.xlabel('time steps ($t$)')
 plt.legend()
 plt.grid()
+
+#pickle.dump(u_realized, open( "RMPCSE_realized_input.pkl", "wb"))
 
 # plot optimal cost
 plt.figure()
