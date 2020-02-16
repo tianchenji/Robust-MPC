@@ -237,9 +237,9 @@ G = np.array([[0],[0],[0],[0],[-1],[1]])
 f = np.array([[1],[1],[1],[1],[1],[1]])
 
 # bounds on noise
-V = np.array([[10,0],[-10,0],[0,10],[0,-10]])
-lb=[-0.1] * 2
-ub=[0.1] * 2
+V = np.array([[100,0],[-100,0],[0,100],[0,-100]])
+lb=[-0.01] * 2
+ub=[0.01] * 2
 
 # calculate LQR gain matrix
 Q      = np.array([[1, 0], [0, 1]])
@@ -250,7 +250,7 @@ R      = np.array([[10]])
 r = 25
 
 # prediction horizon
-N = 20
+N = 21
 
 s_0 = np.array([[-6.7],[1.4]])
 x_ori_0 = s_0
@@ -320,8 +320,8 @@ plt.ylabel('$x_2$')
 plt.legend()
 plt.grid()
 
-#RMPC_traj = list(zip(vis_x, vis_y))
-#pickle.dump(RMPC_traj, open( "RMPC_traj.pkl", "wb"))
+RMPC_traj = list(zip(vis_x, vis_y))
+pickle.dump(RMPC_traj, open( "RMPC_traj.pkl", "wb"))
 
 '''
 # plot constraints and corresponding bounds (indirect way)
@@ -336,18 +336,18 @@ plt.grid()
 # plot constraints and corresponding bounds on control inputs (direct way)
 plt.figure()
 plt.plot([i * float(1/G[4]) for i in constraint_var[4]], 'k.-', label='auxiliary control input planned at $t=0$')
-#time_step = list(range(N - 1))
-#constraint_control_1 = [float(1/G[4])*(float(f[4]) - h[4])] * (N - 1)
-#constraint_control_2 = [float(1/G[5])*(float(f[5]) - h[5])] * (N - 1)
+time_step = list(range(N - 1))
+constraint_control_1 = [float(1/G[4])*(float(f[4]) - h[4])] * (N - 1)
+constraint_control_2 = [float(1/G[5])*(float(f[5]) - h[5])] * (N - 1)
 plt.axhline(float(1/G[4])*(float(f[4]) - h[4]), color='r')
 plt.axhline(float(1/G[5])*(float(f[5]) - h[5]), color='r')
-plt.axis([0, N-2, -0.8, 0.8])
+plt.axis([0, N-2, -1.2, 1.2])
 plt.xlabel('time steps ($t$)')
 plt.legend()
 plt.grid()
 
-#RMPC_planned_input = list(zip([i * float(1/G[4]) for i in constraint_var[4]], time_step, constraint_control_1, constraint_control_2))
-#pickle.dump(RMPC_planned_input, open( "RMPC_planned_input.pkl", "wb"))
+RMPC_planned_input = list(zip([i * float(1/G[4]) for i in constraint_var[4]], time_step, constraint_control_1, constraint_control_2))
+pickle.dump(RMPC_planned_input, open( "RMPC_planned_input.pkl", "wb"))
 
 # plot realized optimal control inputs
 plt.figure()
@@ -359,7 +359,7 @@ plt.xlabel('time steps ($t$)')
 plt.legend()
 plt.grid()
 
-#pickle.dump(u_realized, open( "RMPC_realized_input.pkl", "wb"))
+pickle.dump(u_realized, open( "RMPC_realized_input.pkl", "wb"))
 
 # plot optimal cost
 plt.figure()
@@ -368,6 +368,8 @@ plt.xlabel('time steps ($t$)')
 plt.ylabel(r'$J^*$')
 plt.legend()
 plt.grid()
+
+pickle.dump(J_value, open( "J_value_average_RMPC.pkl", "wb"))
 
 plt.show()
 print(end-start)

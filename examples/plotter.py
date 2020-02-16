@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import numpy as np
 import pickle
 
 # plot 1
@@ -29,7 +30,7 @@ plt.plot(RMPCSE_traj[0], RMPCSE_traj[1], color='black', marker='.', label=r'meas
 plt.title('realized state trajectory')
 plt.xlabel('$x_1$')
 plt.ylabel('$x_2$')
-plt.axis([-7, 1, -0.2, 1.8])
+plt.axis([-7, 1, -0.2, 2.0])
 plt.legend()
 plt.grid()
 
@@ -43,7 +44,8 @@ plt.plot(RMPCSE_planned_input[1], RMPCSE_planned_input[2], linestyle='--', color
 plt.plot(RMPCSE_planned_input[1], RMPCSE_planned_input[3], linestyle='--', color='red')
 plt.fill_between(RMPCSE_planned_input[1], RMPCSE_planned_input[2], RMPCSE_planned_input[3], color='grey', alpha='0.2')
 plt.xlabel('time steps ($t$)')
-plt.axis([0, 18, -0.8, 0.8])
+plt.xticks(np.arange(0,19,2))
+plt.axis([0, 19, -1.2, 1.2])
 plt.legend(loc=1)
 plt.title(r'planned auxiliary inputs at $t=0$')
 plt.grid()
@@ -59,7 +61,7 @@ plt.axhline(-1, color='r', linestyle='--', label='control input constraints')
 plt.axhline(1, color='r', linestyle='--')
 plt.xlabel('time steps ($t$)')
 plt.title(r'realized input $u(t)$')
-plt.axis([0, 27, -1.2, 1.2])
+plt.axis([0, 25, -1.2, 1.2])
 plt.legend()
 plt.grid()
 
@@ -70,7 +72,7 @@ plt.plot(J_value_average_RMPCSE[0:11], color='black', marker='.', label=r'measur
 plt.xlabel('time steps ($t$)')
 plt.ylabel(r'$J^*$')
 plt.title("average optimal cost value over 100 sample trajectories")
-plt.axis([0, 10, -5, 180])
+plt.axis([0, 10, -5, 160])
 plt.legend()
 plt.grid()
 

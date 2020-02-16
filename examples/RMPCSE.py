@@ -581,7 +581,7 @@ B = np.array([[0],[1]])
 D = np.array([[1,0],[0,1]])
 
 # observer matrix
-H = np.array([[1, 0], [0, 1]])
+H = np.array([[1, 0]])
 
 # states and input constraints
 F = np.array([[-0.1,0],[0.1,0],[0,-0.1],[0,0.1],[0,0],[0,0]])
@@ -589,22 +589,22 @@ G = np.array([[0],[0],[0],[0],[-1],[1]])
 f = np.array([[1],[1],[1],[1],[1],[1]])
 
 # bounds on process noise
-V_w  = np.array([[10,0],[-10,0],[0,10],[0,-10]])
-lb_w = [-0.1] * 2
-ub_w = [0.1] * 2
+V_w  = np.array([[100,0],[-100,0],[0,100],[0,-100]])
+lb_w = [-0.01] * 2
+ub_w = [0.01] * 2
 
 # bounds on measurement noise
-lb_zeta = [-0.01] * 2
-ub_zeta = [0.01] * 2
+lb_zeta = [-0.01]
+ub_zeta = [0.01]
 
 # initial constraints and initial guess
-sigma = np.array([[0.0005, 0], [0, 0.0005]])
-x_hat = np.array([[-6.69],[1.39]])
+sigma = np.array([[0.0005, 0], [0, 0.0036]])
+x_hat = np.array([[-6.69],[1.35]])
 delta = 0
 
 # instantaneous constraints in filtering
 Q = np.array([[2*ub_w[0]**2, 0], [0, 2*ub_w[0]**2]])
-R = np.array([[2*ub_zeta[0]**2, 0], [0, 2*ub_zeta[0]**2]])
+R = np.array([[ub_zeta[0]**2]])
 
 # calculate LQR gain matrix
 Q_lqr  = np.array([[1, 0], [0, 1]])
@@ -615,7 +615,7 @@ R_lqr  = np.array([[10]])
 r = 25
 
 # prediction horizon
-N = 20
+N = 21
 
 s_0 = x_hat
 x_ori_0 = np.array([[-6.7],[1.4]])
@@ -650,6 +650,8 @@ if max(h) >= 1:
 # calculate states estimates error
 (lb_eps, ub_eps) = rbe_stable(A, D, H, Q, R, sigma)
 p_list = rmpc.SEerr(lb_eps, ub_eps)
+#print(lb_eps)
+#sys.exit()
 
 time_index = 0
 start = time.clock()
@@ -712,8 +714,8 @@ plt.ylabel('$x_2$')
 plt.legend()
 plt.grid()
 
-#RMPCSE_traj = list(zip(vis_x, vis_y))
-#pickle.dump(RMPCSE_traj, open( "RMPCSE_traj.pkl", "wb"))
+RMPCSE_traj = list(zip(vis_x, vis_y))
+pickle.dump(RMPCSE_traj, open( "RMPCSE_traj.pkl", "wb"))
 
 '''
 # plot constraints and corresponding bounds (indirect way)
@@ -741,8 +743,8 @@ plt.xlabel('time steps ($t$)')
 plt.legend()
 plt.grid()
 
-#RMPCSE_planned_input = list(zip([i * float(1/G[4]) for i in constraint_var[4]], time_step, constraint_control_1, constraint_control_2))
-#pickle.dump(RMPCSE_planned_input, open( "RMPCSE_planned_input.pkl", "wb"))
+RMPCSE_planned_input = list(zip([i * float(1/G[4]) for i in constraint_var[4]], time_step, constraint_control_1, constraint_control_2))
+pickle.dump(RMPCSE_planned_input, open( "RMPCSE_planned_input.pkl", "wb"))
 
 # plot realized optimal control inputs
 plt.figure()
@@ -754,7 +756,7 @@ plt.xlabel('time steps ($t$)')
 plt.legend()
 plt.grid()
 
-#pickle.dump(u_realized, open( "RMPCSE_realized_input.pkl", "wb"))
+pickle.dump(u_realized, open( "RMPCSE_realized_input.pkl", "wb"))
 
 # plot optimal cost
 plt.figure()
@@ -763,6 +765,8 @@ plt.xlabel('time steps ($t$)')
 plt.ylabel(r'$J^*$')
 plt.legend()
 plt.grid()
+
+pickle.dump(J_value, open( "J_value_average_RMPCSE.pkl", "wb"))
 
 plt.show()
 print(end-start)
