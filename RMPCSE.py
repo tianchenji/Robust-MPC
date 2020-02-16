@@ -92,18 +92,87 @@ class RMPC:
 		mRPI_full is active when the matrix is full row rank
 		'''
 
-		n_x        = np.shape(self.A)[0]
-		n_w        = np.shape(self.D)[1]
-		n_h        = np.shape(self.F)[0]
-		h_w        = [0]*n_h
-		h_eps      = [0]*n_h
-		h_eps_init = [0]*n_h
-		h_eps_0    = [0]*n_h
-		h          = [0]*n_h
+		n_x          = np.shape(self.A)[0]
+		n_w          = np.shape(self.D)[1]
+		n_h          = np.shape(self.F)[0]
+		h_w_a        = [0]*n_h
+		h_eps_a      = [0]*n_h
+		h_eps_init_a = [0]*n_h
+		h_w_b        = [0]*n_h
+		h_eps_b      = [0]*n_h
+		h_eps_init_b = [0]*n_h
+		h_a          = [0]*n_h
+		h_b          = [0]*n_h
+		h            = [0]*n_h
+		cut_index    = 4
 
-		# calculate vector h_w
-		# calculating rho_w given r
+		# PART A - compute the first half of the mRPI set
+
+		# calculate vector h_w_a by solving (cut_index - 1) * n_h linear programs
 		phi = self.A + np.dot(self.B, self.K)
+
+		# define optimization variables
+		w = SX.sym('w', n_w)
+
+		for i in range(cut_index - 1):
+			tmp = self.F + np.dot(self.G, self.K)
+			hcost_w = - mtimes(np.dot(tmp, np.dot(np.linalg.matrix_power(phi, i), self.D)), w)
+			for j in range(n_h):
+				nlp = {'x':w, 'f':hcost_w[j]}
+				opts = {}
+				opts["ipopt.print_level"] = 0
+				opts["print_time"] = 0
+				solver = nlpsol('solver', 'ipopt', nlp, opts)
+				x0 = [0] * n_w
+				res = solver(x0=x0, lbx=self.w_lb, ubx=self.w_ub)
+				h_w_a[j] += - res['f']
+
+
+		# calculate vector h_eps_a
+		psi = np.dot(self.B, self.K)
+
+		# define optimization variables
+		eps = SX.sym('eps', n_x)
+
+		for i in range(cut_index - 1):
+			tmp = self.F + np.dot(self.G, self.K)
+			hcost_eps = - mtimes(np.dot(tmp, np.dot(np.linalg.matrix_power(phi, i), psi)), eps)
+			for j in range(n_h):
+				nlp = {'x':eps, 'f':hcost_eps[j]}
+				opts = {}
+				opts["ipopt.print_level"] = 0
+				opts["print_time"] = 0
+				solver = nlpsol('solver', 'ipopt', nlp, opts)
+				x0 = [0] * n_x
+				res = solver(x0=x0, lbx=self.lb_eps_0, ubx=self.ub_eps_0)
+				h_eps_a[j] += - res['f']
+
+
+		# calculate vector h_eps_init_a
+		# define optimization variables
+		eps_init = SX.sym('eps_init', n_x)
+
+		for i in range(cut_index):
+			tmp = self.F + np.dot(self.G, self.K)
+			hcost_eps_init = - mtimes(np.dot(tmp, np.linalg.matrix_power(phi, i)), eps_init)
+			for j in range(n_h):
+				nlp = {'x':eps_init, 'f':hcost_eps_init[j]}
+				opts = {}
+				opts["ipopt.print_level"] = 0
+				opts["print_time"] = 0
+				solver = nlpsol('solver', 'ipopt', nlp, opts)
+				x0 = [0] * n_x
+				res = solver(x0=x0, lbx=self.lb_eps_0, ubx=self.ub_eps_0)
+				h_eps_init_a[j] += - res['f']
+
+		# compute the final bounds for Part A
+		h_a = [h_w_a[i] + h_eps_a[i] + h_eps_init_a[i] for i in range(len(h_w_a))]
+
+
+		# PART B - compute the second half of the mRPI set
+
+		# calculate vector h_w_b
+		# calculating rho_w given r
 		n_rho_w = np.shape(self.V_w)[0]
 		mrho_w = [None]*n_rho_w
 
@@ -126,7 +195,7 @@ class RMPC:
 			mrho_w[i] = - res['f']
 		rho_w = max(mrho_w)
 
-		# calculate vector h_w by solving r * n_h linear programs
+		# calculate vector h_w_b by solving r * n_h linear programs
 		for j in range(self.r):
 			tmp = self.F + np.dot(self.G, self.K)
 			hcost_w = - mtimes(np.dot(tmp, np.dot(np.linalg.matrix_power(phi, j), self.D)), w)
@@ -138,13 +207,12 @@ class RMPC:
 				solver = nlpsol('solver', 'ipopt', nlp, opts)
 				x0 = [0] * n_w
 				res = solver(x0=x0, lbx=self.w_lb, ubx=self.w_ub)
-				h_w[k] += - res['f']
-		h_w = [i/(1 - rho_w) for i in h_w]
+				h_w_b[k] += - res['f']
+		h_w_b = [i/(1 - rho_w) for i in h_w_b]
 
 
-		# calculate vector h_eps
+		# calculate vector h_eps_b
 		# calculating rho_eps given r
-		psi = np.dot(self.B, self.K)
 		n_rho_eps = np.shape(self.V_eps)[0]
 		mrho_eps = [None]*n_rho_eps
 
@@ -167,7 +235,7 @@ class RMPC:
 			mrho_eps[i] = - res['f']
 		rho_eps = max(mrho_eps)
 
-		# calculate vector h_eps by solving r * n_h linear programs
+		# calculate vector h_eps_b by solving r * n_h linear programs
 		for j in range(self.r):
 			tmp = self.F + np.dot(self.G, self.K)
 			hcost_eps = - mtimes(np.dot(tmp, np.dot(np.linalg.matrix_power(phi, j), psi)), eps)
@@ -179,13 +247,13 @@ class RMPC:
 				solver = nlpsol('solver', 'ipopt', nlp, opts)
 				x0 = [0] * n_x
 				res = solver(x0=x0, lbx=self.lb_eps_0, ubx=self.ub_eps_0)
-				h_eps[k] += - res['f']
-		h_eps = [i/(1 - rho_eps) for i in h_eps]
+				h_eps_b[k] += - res['f']
+		h_eps_b = [i/(1 - rho_eps) for i in h_eps_b]
 
-		
-		# calculate vector h_eps_init
+
+		# calculate vector h_eps_init_b
 		# calculating rho_eps_init given r
-		coef_matrix = np.eye(np.shape(phi)[0]) - phi
+		coef_matrix = np.linalg.matrix_power(phi, cut_index)
 		n_rho_eps_init = np.shape(self.V_eps)[0]
 		mrho_eps_init = [None]*n_rho_eps_init
 
@@ -196,7 +264,7 @@ class RMPC:
 		tmp = np.dot(self.V_eps, np.dot(np.linalg.pinv(coef_matrix), np.dot(np.linalg.matrix_power(phi, self.r), coef_matrix)))
 		rhocost_eps_init = - mtimes(tmp, eps_init)
 
-		# solve n_rho_w linear programs
+		# solve n_rho_eps_init linear programs
 		for i in range(n_rho_eps_init):
 			nlp = {'x':eps_init, 'f':rhocost_eps_init[i]}
 			opts = {}
@@ -208,7 +276,7 @@ class RMPC:
 			mrho_eps_init[i] = - res['f']
 		rho_eps_init = max(mrho_eps_init)
 
-		# calculate vector h_eps_init by solving r * n_h linear programs
+		# calculate vector h_eps_init_b by solving r * n_h linear programs
 		for j in range(self.r):
 			tmp = self.F + np.dot(self.G, self.K)
 			hcost_eps_init = - mtimes(np.dot(tmp, np.dot(np.linalg.matrix_power(phi, j), coef_matrix)), eps_init)
@@ -220,29 +288,13 @@ class RMPC:
 				solver = nlpsol('solver', 'ipopt', nlp, opts)
 				x0 = [0] * n_x
 				res = solver(x0=x0, lbx=self.lb_eps_0, ubx=self.ub_eps_0)
-				h_eps_init[k] += - res['f']
-		h_eps_init = [i/(1 - rho_eps_init) for i in h_eps_init]
+				h_eps_init_b[k] += - res['f']
+		h_eps_init_b = [i/(1 - rho_eps_init) for i in h_eps_init_b]
 
-		
-		# calculate vector h_eps_0
-		# define optimization variables
-		eps_0 = SX.sym('eps_0', n_x)
+		# compute the final bounds for Part B
+		h_b = [h_w_b[i] + h_eps_b[i] + h_eps_init_b[i] for i in range(len(h_w_b))]
 
-		# calculate vector h_eps_0 by solving n_h linear programs
-		tmp = self.F + np.dot(self.G, self.K)
-		hcost_eps_0 = - mtimes(tmp, eps_0)
-		for i in range(n_h):
-			nlp = {'x':eps_0, 'f':hcost_eps_0[i]}
-			opts = {}
-			opts["ipopt.print_level"] = 0
-			opts["print_time"] = 0
-			solver = nlpsol('solver', 'ipopt', nlp, opts)
-			x0 = [0] * n_x
-			res = solver(x0=x0, lbx=self.lb_eps_0, ubx=self.ub_eps_0)
-			h_eps_0[i] = - res['f']
-
-		# compute the final bounds
-		h = [h_w[i] + h_eps[i] + h_eps_init[i] - h_eps_0[i] for i in range(len(h_w))]
+		h = [max(h_a[i], h_b[i]) for i in range(len(h_a))]
 
 		return h
 
@@ -252,18 +304,87 @@ class RMPC:
 		Note: we use the fact that eps_0 is symmetric about the origin when computing h_theta
 		'''
 
-		n_x        = np.shape(self.A)[0]
-		n_w        = np.shape(self.D)[1]
-		n_h        = np.shape(self.F)[0]
-		h_w        = [0]*n_h
-		h_theta    = [0]*n_h
-		h_eps_init = [0]*n_h
-		h_eps_0    = [0]*n_h
-		h          = [0]*n_h
+		n_x          = np.shape(self.A)[0]
+		n_w          = np.shape(self.D)[1]
+		n_h          = np.shape(self.F)[0]
+		h_w_a        = [0]*n_h
+		h_eps_a      = [0]*n_h
+		h_eps_init_a = [0]*n_h
+		h_w_b        = [0]*n_h
+		h_theta_b    = [0]*n_h
+		h_eps_init_b = [0]*n_h
+		h_a          = [0]*n_h
+		h_b          = [0]*n_h
+		h            = [0]*n_h
+		cut_index    = 4
 
-		# calculate vector h_w
-		# calculating rho_w given r
+		# PART A - compute the first half of the mRPI set
+
+		# calculate vector h_w_a by solving (cut_index - 1) * n_h linear programs
 		phi = self.A + np.dot(self.B, self.K)
+
+		# define optimization variables
+		w = SX.sym('w', n_w)
+
+		for i in range(cut_index - 1):
+			tmp = self.F + np.dot(self.G, self.K)
+			hcost_w = - mtimes(np.dot(tmp, np.dot(np.linalg.matrix_power(phi, i), self.D)), w)
+			for j in range(n_h):
+				nlp = {'x':w, 'f':hcost_w[j]}
+				opts = {}
+				opts["ipopt.print_level"] = 0
+				opts["print_time"] = 0
+				solver = nlpsol('solver', 'ipopt', nlp, opts)
+				x0 = [0] * n_w
+				res = solver(x0=x0, lbx=self.w_lb, ubx=self.w_ub)
+				h_w_a[j] += - res['f']
+
+
+		# calculate vector h_eps_a
+		psi = np.dot(self.B, self.K)
+
+		# define optimization variables
+		eps = SX.sym('eps', n_x)
+
+		for i in range(cut_index - 1):
+			tmp = self.F + np.dot(self.G, self.K)
+			hcost_eps = - mtimes(np.dot(tmp, np.dot(np.linalg.matrix_power(phi, i), psi)), eps)
+			for j in range(n_h):
+				nlp = {'x':eps, 'f':hcost_eps[j]}
+				opts = {}
+				opts["ipopt.print_level"] = 0
+				opts["print_time"] = 0
+				solver = nlpsol('solver', 'ipopt', nlp, opts)
+				x0 = [0] * n_x
+				res = solver(x0=x0, lbx=self.lb_eps_0, ubx=self.ub_eps_0)
+				h_eps_a[j] += - res['f']
+
+
+		# calculate vector h_eps_init_a
+		# define optimization variables
+		eps_init = SX.sym('eps_init', n_x)
+
+		for i in range(cut_index):
+			tmp = self.F + np.dot(self.G, self.K)
+			hcost_eps_init = - mtimes(np.dot(tmp, np.linalg.matrix_power(phi, i)), eps_init)
+			for j in range(n_h):
+				nlp = {'x':eps_init, 'f':hcost_eps_init[j]}
+				opts = {}
+				opts["ipopt.print_level"] = 0
+				opts["print_time"] = 0
+				solver = nlpsol('solver', 'ipopt', nlp, opts)
+				x0 = [0] * n_x
+				res = solver(x0=x0, lbx=self.lb_eps_0, ubx=self.ub_eps_0)
+				h_eps_init_a[j] += - res['f']
+
+		# compute the final bounds for Part A
+		h_a = [h_w_a[i] + h_eps_a[i] + h_eps_init_a[i] for i in range(len(h_w_a))]
+
+
+		# PART B - compute the second half of the mRPI set
+
+		# calculate vector h_w_b
+		# calculating rho_w given r
 		n_rho_w = np.shape(self.V_w)[0]
 		mrho_w = [None]*n_rho_w
 
@@ -286,7 +407,7 @@ class RMPC:
 			mrho_w[i] = - res['f']
 		rho_w = max(mrho_w)
 
-		# calculate vector h_w by solving r * n_h linear programs
+		# calculate vector h_w_b by solving r * n_h linear programs
 		for j in range(self.r):
 			tmp = self.F + np.dot(self.G, self.K)
 			hcost_w = - mtimes(np.dot(tmp, np.dot(np.linalg.matrix_power(phi, j), self.D)), w)
@@ -298,14 +419,12 @@ class RMPC:
 				solver = nlpsol('solver', 'ipopt', nlp, opts)
 				x0 = [0] * n_w
 				res = solver(x0=x0, lbx=self.w_lb, ubx=self.w_ub)
-				h_w[k] += - res['f']
-		h_w = [i/(1 - rho_w) for i in h_w]
+				h_w_b[k] += - res['f']
+		h_w_b = [i/(1 - rho_w) for i in h_w_b]
 
 
-		# calculate vector h_theta
+		# calculate vector h_theta_b
 		# calculating rho_theta given r
-		psi = np.dot(self.B, self.K)
-
 		# calculating outbounding convex set
 		epsilon  = 1e-5
 		psi_abs  = np.abs(psi)
@@ -338,7 +457,7 @@ class RMPC:
 			mrho_theta[i] = - res['f']
 		rho_theta = max(mrho_theta)
 
-		# calculate vector h_theta by solving r * n_h linear programs
+		# calculate vector h_theta_b by solving r * n_h linear programs
 		for j in range(self.r):
 			tmp = self.F + np.dot(self.G, self.K)
 			hcost_theta = - mtimes(np.dot(tmp, np.linalg.matrix_power(phi, j)), theta)
@@ -350,13 +469,13 @@ class RMPC:
 				solver = nlpsol('solver', 'ipopt', nlp, opts)
 				x0 = [0] * n_x
 				res = solver(x0=x0, lbx=lb_theta, ubx=ub_theta)
-				h_theta[k] += - res['f']
-		h_theta = [i/(1 - rho_theta) for i in h_theta]
+				h_theta_b[k] += - res['f']
+		h_theta_b = [i/(1 - rho_theta) for i in h_theta_b]
 
 
-		# calculate vector h_eps_init
+		# calculate vector h_eps_init_b
 		# calculating rho_eps_init given r
-		coef_matrix = np.eye(np.shape(phi)[0]) - phi
+		coef_matrix = np.linalg.matrix_power(phi, cut_index)
 		n_rho_eps_init = np.shape(self.V_eps)[0]
 		mrho_eps_init = [None]*n_rho_eps_init
 
@@ -367,7 +486,7 @@ class RMPC:
 		tmp = np.dot(self.V_eps, np.dot(np.linalg.pinv(coef_matrix), np.dot(np.linalg.matrix_power(phi, self.r), coef_matrix)))
 		rhocost_eps_init = - mtimes(tmp, eps_init)
 
-		# solve n_rho_w linear programs
+		# solve n_rho_eps_init linear programs
 		for i in range(n_rho_eps_init):
 			nlp = {'x':eps_init, 'f':rhocost_eps_init[i]}
 			opts = {}
@@ -379,7 +498,7 @@ class RMPC:
 			mrho_eps_init[i] = - res['f']
 		rho_eps_init = max(mrho_eps_init)
 
-		# calculate vector h_eps_init by solving r * n_h linear programs
+		# calculate vector h_eps_init_b by solving r * n_h linear programs
 		for j in range(self.r):
 			tmp = self.F + np.dot(self.G, self.K)
 			hcost_eps_init = - mtimes(np.dot(tmp, np.dot(np.linalg.matrix_power(phi, j), coef_matrix)), eps_init)
@@ -391,29 +510,13 @@ class RMPC:
 				solver = nlpsol('solver', 'ipopt', nlp, opts)
 				x0 = [0] * n_x
 				res = solver(x0=x0, lbx=self.lb_eps_0, ubx=self.ub_eps_0)
-				h_eps_init[k] += - res['f']
-		h_eps_init = [i/(1 - rho_eps_init) for i in h_eps_init]
+				h_eps_init_b[k] += - res['f']
+		h_eps_init_b = [i/(1 - rho_eps_init) for i in h_eps_init_b]
 
-		
-		# calculate vector h_eps_0
-		# define optimization variables
-		eps_0 = SX.sym('eps_0', n_x)
+		# compute the final bounds for Part B
+		h_b = [h_w_b[i] + h_theta_b[i] + h_eps_init_b[i] for i in range(len(h_w_b))]
 
-		# calculate vector h_eps_0 by solving n_h linear programs
-		tmp = self.F + np.dot(self.G, self.K)
-		hcost_eps_0 = - mtimes(tmp, eps_0)
-		for i in range(n_h):
-			nlp = {'x':eps_0, 'f':hcost_eps_0[i]}
-			opts = {}
-			opts["ipopt.print_level"] = 0
-			opts["print_time"] = 0
-			solver = nlpsol('solver', 'ipopt', nlp, opts)
-			x0 = [0] * n_x
-			res = solver(x0=x0, lbx=self.lb_eps_0, ubx=self.ub_eps_0)
-			h_eps_0[i] = - res['f']
-
-		# compute the final bounds
-		h = [h_w[i] + h_theta[i] + h_eps_init[i] - h_eps_0[i] for i in range(len(h_w))]
+		h = [max(h_a[i], h_b[i]) for i in range(len(h_a))]
 
 		return h
 
@@ -732,7 +835,7 @@ for i in range(len(p_list) - 1):
 	constraint_control_2[i] = float(1/G[5])*(float(f[5]) - h[5] - p_list[i][5])
 plt.plot(time_step, constraint_control_1, 'r-')
 plt.plot(time_step, constraint_control_2, 'r-')
-plt.axis([0, N-2, -0.8, 0.8])
+plt.axis([0, N-2, -1.2, 1.2])
 plt.xlabel('time steps ($t$)')
 plt.legend()
 plt.grid()
@@ -742,7 +845,7 @@ plt.figure()
 plt.plot(u_realized, '.-', label='realized optimal control inputs')
 plt.axhline(f[4]/G[4], color='r')
 plt.axhline(f[5]/G[5], color='r')
-plt.axis([0, len(u_realized)-1, -1.4, 1.4])
+plt.axis([0, len(u_realized)-1, -1.2, 1.2])
 plt.xlabel('time steps ($t$)')
 plt.legend()
 plt.grid()
