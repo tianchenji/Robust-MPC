@@ -27,12 +27,12 @@ RMPCSE_planned_input = [list(i) for i in zip(*RMPCSE_planned_input)]
 plt.figure()
 plt.plot(RMPC_traj[0], RMPC_traj[1], color='royalblue', marker='.', label='no measurement noise')
 plt.plot(RMPCSE_traj[0], RMPCSE_traj[1], color='red', marker='.', label=r'measurement noise $|| \xi ||_\infty \leq 0.01$')
-plt.title('realized state trajectory')
+#plt.title('realized state trajectory')
 plt.xlabel('$x_1$')
 plt.ylabel('$x_2$')
 plt.axis([-7, 1, -0.2, 2.0])
 plt.legend()
-plt.grid()
+plt.grid(linestyle=':')
 
 # planned auxiliary inputs at t = 0
 plt.figure()
@@ -48,8 +48,8 @@ plt.xticks(np.arange(0,19,2))
 plt.yticks(np.arange(-1.2,1.21,0.2))
 plt.axis([0, 19, -1.2, 1.2])
 plt.legend(loc=1)
-plt.title(r'planned auxiliary inputs at $t=0$')
-plt.grid()
+#plt.title(r'planned auxiliary inputs at $t=0$')
+plt.grid(linestyle=':')
 
 # realized input u
 while len(u_realized_RMPC) < len(u_realized_RMPCSE):
@@ -58,14 +58,14 @@ while len(u_realized_RMPC) < len(u_realized_RMPCSE):
 plt.figure()
 plt.plot(u_realized_RMPC, color='royalblue', marker='.', label='no measurement noise')
 plt.plot(u_realized_RMPCSE, color='red', marker='.', label=r'measurement noise $|| \xi ||_\infty \leq 0.01$')
-plt.axhline(-1, color='k', label='control input constraints')
+plt.axhline(-1, color='k')
 plt.axhline(1, color='k')
 plt.xlabel('time steps ($t$)')
-plt.title(r'realized input $u(t)$')
+#plt.title(r'realized input $u(t)$')
 plt.yticks(np.arange(-1.2,1.21,0.2))
 plt.axis([0, 25, -1.2, 1.2])
 plt.legend()
-plt.grid()
+plt.grid(linestyle=':')
 
 # average optimal cost value
 plt.figure()
@@ -73,10 +73,10 @@ plt.plot(J_value_average_RMPC[0:11], color='royalblue', marker='.', label='no me
 plt.plot(J_value_average_RMPCSE[0:11], color='red', marker='.', label=r'measurement noise $|| \xi ||_\infty \leq 0.01$')
 plt.xlabel('time steps ($t$)')
 plt.ylabel(r'$J^*$')
-plt.title("average optimal cost value over 100 sample trajectories")
+#plt.title("average optimal cost value over 100 sample trajectories")
 plt.axis([0, 10, -5, 160])
 plt.legend()
-plt.grid()
+plt.grid(linestyle=':')
 
 plt.show()
 
