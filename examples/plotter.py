@@ -2,6 +2,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pickle
 
+plt.rcParams["font.family"] = "Times New Roman"
+plt.rcParams['mathtext.fontset'] = 'cm'
+plt.rcParams['pdf.fonttype'] = 42
+plt.rcParams['ps.fonttype'] = 42
+
 # plot 1
 RMPC_traj = pickle.load(open("RMPC_traj.pkl", "rb"))
 RMPCSE_traj = pickle.load(open("RMPCSE_traj.pkl", "rb"))
@@ -25,8 +30,8 @@ RMPCSE_planned_input = [list(i) for i in zip(*RMPCSE_planned_input)]
 
 # realized state trajectory
 plt.figure()
-plt.plot(RMPC_traj[0], RMPC_traj[1], color='royalblue', marker='.', label='no measurement noise')
-plt.plot(RMPCSE_traj[0], RMPCSE_traj[1], color='red', marker='.', label=r'measurement noise $|| \xi ||_\infty \leq 0.01$')
+plt.plot(RMPC_traj[0], RMPC_traj[1], color='royalblue', marker='.', markersize=7.0, label='perfect state feedback')
+plt.plot(RMPCSE_traj[0], RMPCSE_traj[1], color='red', marker='.', markersize=4.0, fillstyle='none', label=r'state estimation with $|| \xi ||_\infty \leq 0.01$')
 #plt.title('realized state trajectory')
 plt.xlabel('$x_1$')
 plt.ylabel('$x_2$')
@@ -36,10 +41,10 @@ plt.grid(linestyle=':')
 
 # planned auxiliary inputs at t = 0
 plt.figure()
-plt.plot(RMPC_planned_input[0], color='royalblue', marker='.', label='no measurement noise')
+plt.plot(RMPC_planned_input[0], color='royalblue', marker='.', markersize=7.0, label='perfect state feedback')
 plt.plot(RMPC_planned_input[1], RMPC_planned_input[2], color='black')
 plt.plot(RMPC_planned_input[1], RMPC_planned_input[3], color='black')
-plt.plot(RMPCSE_planned_input[0], color='red', linestyle='--', marker='.', label=r'measurement noise $|| \xi ||_\infty \leq 0.01$')
+plt.plot(RMPCSE_planned_input[0], color='red', linestyle='--', marker='s', markersize=4.0, fillstyle='none', label=r'state estimation with $|| \xi ||_\infty \leq 0.01$')
 plt.plot(RMPCSE_planned_input[1], RMPCSE_planned_input[2], linestyle='--', color='black')
 plt.plot(RMPCSE_planned_input[1], RMPCSE_planned_input[3], linestyle='--', color='black')
 plt.fill_between(RMPCSE_planned_input[1], RMPCSE_planned_input[2], RMPCSE_planned_input[3], color='grey', alpha='0.2')
@@ -56,10 +61,14 @@ while len(u_realized_RMPC) < len(u_realized_RMPCSE):
 	u_realized_RMPC.append([0])
 
 plt.figure()
-plt.plot(u_realized_RMPC, color='royalblue', marker='.', label='no measurement noise')
-plt.plot(u_realized_RMPCSE, color='red', marker='.', label=r'measurement noise $|| \xi ||_\infty \leq 0.01$')
+plt.plot(u_realized_RMPC, color='royalblue', marker='.', markersize=7.0, label='perfect state feedback')
+plt.plot(u_realized_RMPCSE, color='red', marker='s', markersize=4.0, fillstyle='none', label=r'state estimation with $|| \xi ||_\infty \leq 0.01$')
 plt.axhline(-1, color='k')
 plt.axhline(1, color='k')
+time_step = list(range(26))
+u_lowerbound = [-1]*len(time_step)
+u_upperbound = [1]*len(time_step)
+plt.fill_between(time_step, u_lowerbound, u_upperbound, color='grey', alpha='0.2')
 plt.xlabel('time steps ($t$)')
 #plt.title(r'realized input $u(t)$')
 plt.yticks(np.arange(-1.2,1.21,0.2))
@@ -69,8 +78,8 @@ plt.grid(linestyle=':')
 
 # average optimal cost value
 plt.figure()
-plt.plot(J_value_average_RMPC[0:11], color='royalblue', marker='.', label='no measurement noise')
-plt.plot(J_value_average_RMPCSE[0:11], color='red', marker='.', label=r'measurement noise $|| \xi ||_\infty \leq 0.01$')
+plt.plot(J_value_average_RMPC[0:11], color='royalblue', marker='.', markersize=7.0, label='perfect state feedback')
+plt.plot(J_value_average_RMPCSE[0:11], color='red', marker='s', markersize=4.0, fillstyle='none', label=r'state estimation with $|| \xi ||_\infty \leq 0.01$')
 plt.xlabel('time steps ($t$)')
 plt.ylabel(r'$J^*$')
 #plt.title("average optimal cost value over 100 sample trajectories")
