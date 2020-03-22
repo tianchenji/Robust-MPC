@@ -31,7 +31,7 @@ RMPCSE_planned_input = [list(i) for i in zip(*RMPCSE_planned_input)]
 # realized state trajectory
 plt.figure()
 plt.plot(RMPC_traj[0], RMPC_traj[1], color='royalblue', marker='.', markersize=7.0, label='perfect state feedback')
-plt.plot(RMPCSE_traj[0], RMPCSE_traj[1], color='red', marker='.', markersize=4.0, fillstyle='none', label=r'state estimation with $|| \xi ||_\infty \leq 0.01$')
+plt.plot(RMPCSE_traj[0], RMPCSE_traj[1], color='red', marker='s', markersize=4.0, fillstyle='none', label=r'state estimation with $|| \xi ||_\infty \leq 0.01$')
 #plt.title('realized state trajectory')
 plt.xlabel('$x_1$')
 plt.ylabel('$x_2$')
